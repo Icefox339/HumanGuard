@@ -159,3 +159,36 @@ func (h *SiteHandler) SuspendSite(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// GET /api/sites/{id}/settings
+func (h *SiteHandler) GetSiteSettings(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	settings, err := h.storage.GetSiteSettings(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(settings)
+}
+
+// PUT /api/sites/{id}/settings
+func (h *SiteHandler) UpdateSiteSettings(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var settings storage.ModuleSettings
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.storage.UpdateSiteSettings(r.Context(), id, &settings); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(settings)
+}

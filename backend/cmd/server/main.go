@@ -75,6 +75,8 @@ func startHTTPServer(store storage.Storage) {
 		mux.HandleFunc("DELETE /api/sites/{id}", siteHandler.DeleteSite)
 		mux.HandleFunc("POST /api/sites/{id}/activate", siteHandler.ActivateSite)
 		mux.HandleFunc("POST /api/sites/{id}/suspend", siteHandler.SuspendSite)
+		mux.HandleFunc("GET /api/sites/{id}/settings", siteHandler.GetSiteSettings)
+		mux.HandleFunc("PUT /api/sites/{id}/settings", siteHandler.UpdateSiteSettings)
 	}
 
 	// Session endpoints
