@@ -59,6 +59,7 @@ func startHTTPServer(store storage.Storage) {
 	mux.HandleFunc("PUT /api/users/{id}", userHandler.UpdateUser)
 	mux.HandleFunc("DELETE /api/users/{id}", userHandler.DeleteUser)
 	mux.HandleFunc("POST /api/users/{id}/password", userHandler.ChangePassword)
+	mux.HandleFunc("POST /api/login", userHandler.Login)
 
 	// create server
 	server := &http.Server{
