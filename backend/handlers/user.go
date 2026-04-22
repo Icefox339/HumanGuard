@@ -258,3 +258,27 @@ func (h *UserHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// GET /api/users/oauth/{provider}/{oauthId}
+func (h *UserHandler) GetUserByOAuth(w http.ResponseWriter, r *http.Request) {
+	provider := r.PathValue("provider")
+	oauthId := r.PathValue("oauthId")
+
+	if provider == "" || oauthId == "" {
+		http.Error(w, "provider and oauthId are required", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.storage.GetUserByOAuth(r.Context(), provider, oauthId)
+	if err != nil {
+		if errors.Is(err, storage.ErrUserNotFound) {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}

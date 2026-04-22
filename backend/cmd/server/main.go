@@ -60,6 +60,7 @@ func startHTTPServer(store storage.Storage) {
 		mux.HandleFunc("GET /api/users/{id}", userHandler.GetUser)
 		mux.HandleFunc("GET /api/users/email/{email}", userHandler.GetUserByEmail)
 		mux.HandleFunc("GET /api/users/exists", userHandler.CheckEmailExists)
+		mux.HandleFunc("GET /api/users/oauth/{provider}/{oauthId}", userHandler.GetUserByOAuth)
 		mux.HandleFunc("POST /api/users", userHandler.CreateUser)
 		mux.HandleFunc("PUT /api/users/{id}", userHandler.UpdateUser)
 		mux.HandleFunc("DELETE /api/users/{id}", userHandler.DeleteUser)
