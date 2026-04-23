@@ -1,10 +1,11 @@
 import { api } from '@/api/client';
 import { User } from '@/api/types';
+import { UserDetails } from '@/api/users';
 
 export type LoginPayload = {
   email: string;
   password: string;
-  totp_code: string;
+  totp_code?: string;
 };
 
 export type RegisterPayload = {
@@ -26,7 +27,7 @@ export type RegisterResponse = {
 };
 
 export const login = (payload: LoginPayload) =>
-  api.post<LoginResponse>('/login', payload).then(({ data }) => data);
+  api.post<LoginResponse | UserDetails>('/login', payload).then(({ data }) => data);
 
 export const register = (payload: RegisterPayload) =>
   api.post<RegisterResponse>('/users', payload).then(({ data }) => data);

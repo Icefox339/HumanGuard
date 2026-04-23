@@ -7,7 +7,11 @@ export const useAuth = () => {
 
   const loginMutation = useMutation({
     mutationFn: login,
-    onSuccess: ({ token, user }) => setSession(token, user)
+    onSuccess: (response) => {
+      if ('token' in response) {
+        setSession(response.token, response.user);
+      }
+    }
   });
 
   const registerMutation = useMutation({

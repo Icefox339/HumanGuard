@@ -9,7 +9,7 @@ import { useAuth } from '@/features/auth/use-auth';
 const schema = z.object({
   email: z.string().email('Введите корректный email'),
   password: z.string().min(8, 'Минимум 8 символов'),
-  totp_code: z.string().length(6, 'Введите 6 цифр из приложения-аутентификатора')
+  totp_code: z.string().optional().refine((value) => !value || value.length === 6, 'Если код указан, он должен быть 6 цифр')
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -52,7 +52,7 @@ export const LoginForm = () => {
       <input type="password" placeholder="Пароль" className="w-full rounded border px-3 py-2" {...register('password')} />
       {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
 
-      <input placeholder="TOTP код (6 цифр)" className="w-full rounded border px-3 py-2" {...register('totp_code')} />
+      <input placeholder="TOTP код (если включён 2FA)" className="w-full rounded border px-3 py-2" {...register('totp_code')} />
       {errors.totp_code && <p className="text-sm text-red-600">{errors.totp_code.message}</p>}
 
       {apiError && <p className="text-sm text-red-600">{apiError}</p>}
