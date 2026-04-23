@@ -20,14 +20,21 @@ export const RegisterForm = () => {
   const { registerMutation } = useAuth();
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
-  const registrationResult = registerMutation.data;
-
   return (
     <form
       className="w-full space-y-4 rounded border border-slate-200 bg-white p-6"
       onSubmit={handleSubmit((v) => {
         setApiError(null);
         registerMutation.mutate(v, {
+          onSuccess: (result) => {
+            navigate('/auth/2fa-setup', {
+              state: {
+                email: v.email,
+                totp_secret: result.totp_secret,
+                qr_code_url: result.qr_code_url
+              }
+            });
+          },
           onError: (error) => {
             const err = error as AxiosError<{ error?: string }>;
             setApiError(err.response?.data?.error ?? 'Не удалось зарегистрироваться. Попробуйте снова.');
@@ -54,30 +61,6 @@ export const RegisterForm = () => {
       >
         {registerMutation.isPending ? 'Создаём аккаунт...' : 'Создать аккаунт'}
       </button>
-
-      {registrationResult && (
-        <div className="space-y-2 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-          <p>{registrationResult.message}</p>
-          <p>Секрет 2FA: <code>{registrationResult.totp_secret}</code></p>
-          <p>
-            QR для Google Authenticator:{' '}
-            <a className="underline" href={registrationResult.qr_code_url} target="_blank" rel="noreferrer">
-              открыть ссылку
-            </a>
-          </p>
-          <button
-            type="button"
-            className="rounded bg-emerald-700 px-3 py-2 text-white"
-            onClick={() =>
-              navigate('/auth/login', {
-                state: { message: 'Аккаунт создан. Введите email, пароль и TOTP код для входа.' }
-              })
-            }
-          >
-            Перейти ко входу
-          </button>
-        </div>
-      )}
 
       <p className="text-sm text-slate-600">
         Уже есть аккаунт?{' '}

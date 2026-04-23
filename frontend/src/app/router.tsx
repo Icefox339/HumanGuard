@@ -4,6 +4,7 @@ import { AuthLayout } from '@/components/layout/auth-layout';
 import { ProtectedRoute } from '@/components/layout/protected-route';
 import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
+import { TwoFaSetupPage } from '@/pages/auth/twofa-setup-page';
 import { DashboardPage } from '@/pages/app/dashboard-page';
 import { ProfilePage } from '@/pages/app/profile-page';
 import { SitesPage } from '@/pages/app/sites-page';
@@ -22,7 +23,8 @@ export const router = createBrowserRouter([
     element: <AuthLayout />,
     children: [
       { path: 'login', element: <LoginPage /> },
-      { path: 'register', element: <RegisterPage /> }
+      { path: 'register', element: <RegisterPage /> },
+      { path: '2fa-setup', element: <TwoFaSetupPage /> }
     ]
   },
   {
