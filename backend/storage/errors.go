@@ -12,4 +12,5 @@ var (
 	ErrSessionExpired     = errors.New("session expired")
 	ErrSiteNotFound       = errors.New("site not found")
 	ErrSiteAlreadyExists  = errors.New("site already exists")
+	ErrBlacklistEntryNotFound = errors.New("blacklist entry not found")
 )

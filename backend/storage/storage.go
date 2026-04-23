@@ -16,7 +16,8 @@ type Storage interface {
 	//	ShareStorage
 	SiteStorage
 	SettingsStorage
-	//	AnalyticsStorage
+	BlacklistStorage 
+	AccessLogStorage
 
 	Close() error
 	Ping() error
@@ -107,6 +108,53 @@ type Site struct {
 	Settings     *ModuleSettings `json:"settings"`
 	CreatedAt    time.Time       `json:"created_at"`
 	UpdatedAt    time.Time       `json:"updated_at"`
+}
+
+type BlacklistEntry struct {
+	ID        string     `json:"id"`
+	SiteID    string     `json:"site_id"`
+	IP        string     `json:"ip"`
+	Reason    string     `json:"reason"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at"`
+}
+
+type AccessLog struct {
+	ID         string    `json:"id"`
+	SessionID  string    `json:"session_id"`
+	SiteID     string    `json:"site_id"`
+	IP         string    `json:"ip"`
+	Path       string    `json:"path"`
+	Method     string    `json:"method"`
+	UserAgent  string    `json:"user_agent"`
+	Referer    string    `json:"referer"`
+	StatusCode int       `json:"status_code"`
+	RiskScore  int       `json:"risk_score"`
+	Action     string    `json:"action"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type LogStats struct {
+	TotalRequests   int64   `json:"total_requests"`
+	BlockedRequests int64   `json:"blocked_requests"`
+	CaptchaShown    int64   `json:"captcha_shown"`
+	AllowedRequests int64   `json:"allowed_requests"`
+	UniqueIPs       int64   `json:"unique_ips"`
+	AvgRiskScore    float64 `json:"avg_risk_score"`
+}
+
+type AccessLogStorage interface {
+	LogAccess(ctx context.Context, log *AccessLog) error
+	GetAccessLogs(ctx context.Context, siteID string) ([]*AccessLog, error)
+	GetLogStats(ctx context.Context, siteID string, from, to time.Time) (*LogStats, error)
+	CleanupOldLogs(ctx context.Context, siteID string, before time.Time) (int64, error)
+}
+
+type BlacklistStorage interface {
+	AddToBlacklist(ctx context.Context, entry *BlacklistEntry) error
+	RemoveFromBlacklist(ctx context.Context, siteID, ip string) error
+	IsBlacklisted(ctx context.Context, siteID, ip string) (bool, error)
+	ListBlacklist(ctx context.Context, siteID string) ([]*BlacklistEntry, error)
 }
 
 type UserStorage interface {
