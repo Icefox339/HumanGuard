@@ -48,38 +48,32 @@ func connectToDatabase() storage.Storage {
 func startHTTPServer(store storage.Storage) *http.Server {
 	mux := http.NewServeMux()
 
-	// Health check endpoint
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Services
 	jwtService := auth.NewJWTService(getEnv("JWT_SECRET", "super-secret-key"))
 	totpService := auth.NewTOTPService()
 
 	oauthService := auth.NewOAuthService(
 		"humanguard",
-		// TODO: GET IT FROM ENV!!!!!
-		"1meWH6qPeEhd17APBADgo20Mth1J5pzP", // client secret from keycloak
+		getEnv("OAUTH_CLIENT_SECRET", "1meWH6qPeEhd17APBADgo20Mth1J5pzP"),
 		"http://localhost:8080/api/auth/keycloak/callback",
-		"http://localhost:8081",
+		getEnv("KEYCLOAK_URL", "http://localhost:8081"),
 	)
 
-	// Middleware
 	authMiddleware := auth.AuthMiddleware(jwtService)
 
-	// User endpoints
 	{
 		userHandler := handlers.NewUserHandler(store, jwtService, totpService, oauthService)
 
-		// Public
 		mux.HandleFunc("POST /api/users", userHandler.CreateUser)
 		mux.HandleFunc("POST /api/login", userHandler.Login)
+
 		mux.HandleFunc("GET /api/auth/keycloak/login", userHandler.KeycloakLogin)
 		mux.HandleFunc("GET /api/auth/keycloak/callback", userHandler.KeycloakCallback)
 
-		// Protected
 		mux.Handle("GET /api/me", authMiddleware(http.HandlerFunc(userHandler.GetCurrentUser)))
 		mux.Handle("GET /api/users/{id}", authMiddleware(http.HandlerFunc(userHandler.GetUser)))
 		mux.Handle("GET /api/users/email/{email}", authMiddleware(http.HandlerFunc(userHandler.GetUserByEmail)))
@@ -91,7 +85,6 @@ func startHTTPServer(store storage.Storage) *http.Server {
 		mux.Handle("POST /api/users/{id}/avatar", authMiddleware(http.HandlerFunc(userHandler.UpdateAvatar)))
 	}
 
-	// Site endpoints
 	{
 		siteHandler := handlers.NewSiteHandler(store)
 
@@ -106,13 +99,11 @@ func startHTTPServer(store storage.Storage) *http.Server {
 		mux.Handle("PUT /api/sites/{id}/settings", authMiddleware(http.HandlerFunc(siteHandler.UpdateSiteSettings)))
 	}
 
-	// Session endpoints
 	{
 		sessionHandler := handlers.NewSessionHandler(store)
 
 		mux.Handle("POST /api/sessions", authMiddleware(http.HandlerFunc(sessionHandler.CreateSession)))
 		mux.Handle("GET /api/sessions/{id}", authMiddleware(http.HandlerFunc(sessionHandler.GetSession)))
-		mux.Handle("GET /api/sessions/cookie/{cookie}", authMiddleware(http.HandlerFunc(sessionHandler.GetSessionByCookie)))
 		mux.Handle("PUT /api/sessions/{id}", authMiddleware(http.HandlerFunc(sessionHandler.UpdateSession)))
 		mux.Handle("DELETE /api/sessions/{id}", authMiddleware(http.HandlerFunc(sessionHandler.DeactivateSession)))
 		mux.Handle("POST /api/sessions/{id}/block", authMiddleware(http.HandlerFunc(sessionHandler.BlockSession)))
