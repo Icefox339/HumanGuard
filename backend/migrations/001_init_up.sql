@@ -41,6 +41,31 @@ CREATE TABLE sites (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE blacklist (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    ip VARCHAR(45) NOT NULL,
+    reason TEXT DEFAULT 'Auto-blocked by high risk score',
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP,
+    UNIQUE(site_id, ip)
+);
+
+CREATE TABLE access_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
+    ip VARCHAR(45) NOT NULL,
+    path TEXT NOT NULL,
+    method VARCHAR(10) NOT NULL,
+    user_agent TEXT,
+    referer TEXT,
+    status_code INTEGER,
+    risk_score INTEGER DEFAULT 0,
+    action VARCHAR(20) DEFAULT 'allowed',
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_sessions_site_id ON sessions(site_id);
@@ -48,6 +73,11 @@ CREATE INDEX idx_sessions_ip ON sessions(ip);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX idx_sites_user_id ON sites(user_id);
 CREATE INDEX idx_sites_status ON sites(status);
+CREATE INDEX idx_blacklist_site_ip ON blacklist(site_id, ip);
+CREATE INDEX idx_blacklist_expires ON blacklist(expires_at);
+CREATE INDEX idx_access_logs_session_id ON access_logs(session_id);
+CREATE INDEX idx_access_logs_site_id ON access_logs(site_id);
+CREATE INDEX idx_access_logs_created_at ON access_logs(created_at);
 
 UPDATE sites SET settings = '{
     "collector": {
@@ -75,7 +105,19 @@ UPDATE sites SET settings = '{
         "low_risk_action": "allow",
         "medium_risk_action": "captcha",
         "high_risk_action": "block",
-        "block_duration": 60,
+        "block_duration_minutes": 60,
+        "block_duration_permanent": false,
+        "block_message": "Access denied. Your activity appears to be automated.",
+        "add_to_blacklist": true,
+        "blacklist_duration_minutes": 1440,
         "captcha_provider": "hcaptcha"
+    },
+    "blacklist": {
+        "enabled": true,
+        "ips": [],
+        "cidrs": [],
+        "user_agents": [],
+        "auto_block_threshold": 90,
+        "auto_block_duration_minutes": 1440
     }
 }'::jsonb WHERE settings = '{}'::jsonb;
