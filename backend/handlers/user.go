@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"golang.org/x/crypto/bcrypt"
-	"humanguard/storage"
 	"humanguard/auth"
+	"humanguard/storage"
 	"net/http"
 )
 
@@ -15,8 +15,12 @@ type UserHandler struct {
 	totp    *auth.TOTPService
 }
 
-func NewUserHandler(store storage.Storage) *UserHandler {
-	return &UserHandler{storage: store, jwt: jwt, totp: totp}
+func NewUserHandler(store storage.Storage, jwtService *auth.JWTService, totpService *auth.TOTPService) *UserHandler {
+	return &UserHandler{
+		storage: store,
+		jwt:     jwtService,
+		totp:    totpService,
+	}
 }
 
 // GET /api/users/{id}

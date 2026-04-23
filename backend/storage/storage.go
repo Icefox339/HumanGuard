@@ -149,6 +149,7 @@ type SiteStorage interface {
 	UpdateSiteStatus(ctx context.Context, siteID, status string) error
 	ActivateSite(ctx context.Context, siteID string) error
 	SuspendSite(ctx context.Context, siteID string) error
+	GetSitesByUserID(ctx context.Context, userID string) ([]*Site, error)
 }
 
 type SettingsStorage interface {

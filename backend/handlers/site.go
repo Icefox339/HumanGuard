@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"humanguard/auth"
 	"humanguard/storage"
 	"net/http"
 )
@@ -58,8 +59,24 @@ func (h *SiteHandler) CreateSite(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/sites
 func (h *SiteHandler) ListSites(w http.ResponseWriter, r *http.Request) {
-	// TODO(storage): need GetAllSitesByUserID in storage
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+	userID := auth.GetUserID(r.Context())
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	sites, err := h.storage.GetSitesByUserID(r.Context(), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if sites == nil {
+		sites = []*storage.Site{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sites)
 }
 
 // GET /api/sites/{id}

@@ -64,10 +64,10 @@ func (s *storage) CreateSite(ctx context.Context, site *Site) error {
 
 func (s *storage) GetSite(ctx context.Context, id string) (*Site, error) {
 	query := `
-		SELECT 
+		SELECT
 			id, user_id, name, domain, origin_server,
 			status, settings, created_at, updated_at
-		FROM sites 
+		FROM sites
 		WHERE id = $1
 	`
 
@@ -105,10 +105,10 @@ func (s *storage) GetSite(ctx context.Context, id string) (*Site, error) {
 
 func (s *storage) GetSiteByDomain(ctx context.Context, domain string) (*Site, error) {
 	query := `
-		SELECT 
+		SELECT
 			id, user_id, name, domain, origin_server,
 			status, settings, created_at, updated_at
-		FROM sites 
+		FROM sites
 		WHERE domain = $1
 	`
 
@@ -153,8 +153,8 @@ func (s *storage) UpdateSite(ctx context.Context, site *Site) error {
 	}
 
 	query := `
-		UPDATE sites 
-		SET 
+		UPDATE sites
+		SET
 			name = $1,
 			origin_server = $2,
 			status = $3,
@@ -210,8 +210,8 @@ func (s *storage) DeleteSite(ctx context.Context, id string) error {
 
 func (s *storage) UpdateSiteStatus(ctx context.Context, siteID, status string) error {
 	query := `
-		UPDATE sites 
-		SET 
+		UPDATE sites
+		SET
 			status = $1,
 			updated_at = $2
 		WHERE id = $3
@@ -241,7 +241,7 @@ func (s *storage) SuspendSite(ctx context.Context, siteID string) error {
 func (s *storage) GetSitesByUserID(ctx context.Context, userID string) ([]*Site, error) {
 	query := `
 		SELECT id, user_id, name, domain, origin_server, status, settings, created_at, updated_at
-		FROM sites 
+		FROM sites
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 	`
@@ -249,7 +249,7 @@ func (s *storage) GetSitesByUserID(ctx context.Context, userID string) ([]*Site,
 	rows, err := s.db.QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sites by user: %w", err)
-	}ы
+	}
 	defer rows.Close()
 
 	var sites []*Site
