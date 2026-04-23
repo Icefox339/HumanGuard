@@ -60,6 +60,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 
 	oauthService := auth.NewOAuthService(
 		"humanguard",
+		// TODO: GET IT FROM ENV!!!!!
 		"1meWH6qPeEhd17APBADgo20Mth1J5pzP", // client secret from keycloak
 		"http://localhost:8080/api/auth/keycloak/callback",
 		"http://localhost:8081",
