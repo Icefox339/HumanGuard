@@ -23,6 +23,27 @@ func NewUserHandler(store storage.Storage, jwtService *auth.JWTService, totpServ
 	}
 }
 
+// GET /api/users
+func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.storage.ListUsers(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, user := range users {
+		user.PasswordHash = ""
+		user.TOTPSecret = nil
+	}
+
+	if users == nil {
+		users = []*storage.User{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users)
+}
+
 // GET /api/users/{id}
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

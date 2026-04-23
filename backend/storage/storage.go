@@ -159,6 +159,7 @@ type BlacklistStorage interface {
 
 type UserStorage interface {
 	CreateUser(ctx context.Context, user *User) error
+	ListUsers(ctx context.Context) ([]*User, error)
 	UpdateUser(ctx context.Context, user *User) error
 	DeleteUser(ctx context.Context, id string) error
 	GetUserByID(ctx context.Context, id string) (*User, error)

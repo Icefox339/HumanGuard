@@ -29,6 +29,9 @@ export type UpdateUserPayload = {
 export const createUser = (payload: CreateUserPayload) =>
   api.post<UserDetails>('/users', payload).then(({ data }) => data);
 
+export const getUsers = () =>
+  api.get<UserDetails[]>('/users').then(({ data }) => data);
+
 export const getUserById = (id: string) =>
   api.get<UserDetails>(`/users/${id}`).then(({ data }) => data);
 
