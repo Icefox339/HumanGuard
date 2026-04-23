@@ -18,7 +18,7 @@ export const AuthLayout = () => (
             `rounded-md px-3 py-2 text-center ${isActive ? 'bg-slate-900 text-white' : 'text-slate-600'}`
           }
         >
-          Create user
+          Sign up
         </NavLink>
       </div>
       <Outlet />
