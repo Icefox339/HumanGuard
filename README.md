@@ -121,14 +121,32 @@ MyGroup-core/
 
 ### Входные точки в программу
 
-Бэкенд: backend/cmd/server/main.go
-Фронтенд: frontend/src/main.ts
+| Компонент | Путь |
+|-----------|------|
+| Бэкенд | `backend/cmd/server/main.go` |
+| Фронтенд | `frontend/src/main.ts` |
 
 ### Алгоритмы запуска ПО для отладки
-%% Лабораторная 2 %%
 
-> Пошаговый алгоритм запуска ПО, необходимый разработчику для отладки.
+# Запуск
 
+База данных
+    docker run -d \
+      --name humanguard-db \
+      -e POSTGRES_DB=humanguard \
+      -e POSTGRES_USER=postgres \
+      -e POSTGRES_PASSWORD=123 \
+      -p 5432:5432 \
+      postgres:15
+
+Применение миграций и запуск прилки (из директории backend)
+    docker cp migrations/001_init_up.sql humanguard-db:/tmp/init.sql
+    docker exec -i humanguard-db psql -U postgres -d humanguard < migrations/001_init_up.sql
+    docker exec -i humanguard-db psql -U postgres -d humanguard < migrations/002_add_oauth_totp_up.sql
+    go run cmd/server/main.go
+
+## Проверка работы сервера
+    curl http://localhost:8080/health
 
 ### Руководство по настройке и запуску дистрибутива ПО
 %% Лабораторная 3 %%
@@ -137,11 +155,14 @@ MyGroup-core/
 
 ## 4 Требования к аппаратному обеспечению
 
-Компонент	Минимальные	Рекомендуемые
-CPU	2 ядра	4 ядра
-RAM	2 GB	4 GB
-Диск	10 GB	30 GB SSD
-ОС	Linux/macOS/Windows	Linux (Ubuntu 22.04+)
+| Компонент | Минимальные | Рекомендуемые |
+|-----------|-------------|---------------|
+| CPU | 2 ядра | 4 ядра |
+| RAM | 2 GB | 4 GB |
+| Диск | 10 GB | 30 GB SSD |
+| ОС | Linux/macOS/Windows | Linux (Ubuntu 22.04+) |
+| Docker | 24+ | 26+ |
+| Docker Compose | 2+ | 2+ |
 
 ## 5 Описание безопасности системы
 %% Лабораторная 3 %%
