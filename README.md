@@ -128,25 +128,44 @@ MyGroup-core/
 
 ### Алгоритмы запуска ПО для отладки
 
-# Запуск
+#### 1. Запуск базы данных
 
-База данных
-    docker run -d \
-      --name humanguard-db \
-      -e POSTGRES_DB=humanguard \
-      -e POSTGRES_USER=postgres \
-      -e POSTGRES_PASSWORD=123 \
-      -p 5432:5432 \
-      postgres:15
+```bash
+docker run -d \
+  --name humanguard-db \
+  -e POSTGRES_DB=humanguard \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=123 \
+  -p 5432:5432 \
+  postgres:15
+```
 
-Применение миграций и запуск прилки (из директории backend)
-    docker cp migrations/001_init_up.sql humanguard-db:/tmp/init.sql
-    docker exec -i humanguard-db psql -U postgres -d humanguard < migrations/001_init_up.sql
-    docker exec -i humanguard-db psql -U postgres -d humanguard < migrations/002_add_oauth_totp_up.sql
-    go run cmd/server/main.go
+#### 2. Применение миграций
 
-## Проверка работы сервера
-    curl http://localhost:8080/health
+```bash
+cd backend
+
+# Копируем миграции в контейнер и выполняем
+docker cp migrations/001_init_up.sql humanguard-db:/tmp/init.sql
+docker exec -i humanguard-db psql -U postgres -d humanguard < migrations/001_init_up.sql
+docker exec -i humanguard-db psql -U postgres -d humanguard < migrations/002_add_oauth_totp_up.sql
+```
+
+#### 3. Запуск бэкенда
+
+```bash
+cd backend
+go run cmd/server/main.go
+```
+
+Сервер доступен на `http://localhost:8080`
+
+#### 4. Проверка
+
+```bash
+curl http://localhost:8080/health
+# Ответ: {"status":"ok"}
+```
 
 ### Руководство по настройке и запуску дистрибутива ПО
 %% Лабораторная 3 %%
