@@ -33,7 +33,7 @@ export const ProfileCard = () => {
   }, []);
 
   return (
-    <section className="space-y-3 rounded border border-slate-200 bg-white p-4">
+    <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Профиль</h2>
         <button className="rounded border px-3 py-1 text-sm" onClick={() => void loadProfile()}>

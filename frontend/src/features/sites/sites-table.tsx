@@ -61,15 +61,15 @@ export const SitesTable = () => {
 
   return (
     <section className="space-y-4">
-      <form className="space-y-3 rounded border border-slate-200 bg-white p-4" onSubmit={onCreate}>
+      <form className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={onCreate}>
         <h2 className="text-lg font-semibold">Добавить сайт</h2>
-        <input className="w-full rounded border px-3 py-2" placeholder="Название" value={createData.name} onChange={(e) => setCreateData((p) => ({ ...p, name: e.target.value }))} required />
-        <input className="w-full rounded border px-3 py-2" placeholder="Домен" value={createData.domain} onChange={(e) => setCreateData((p) => ({ ...p, domain: e.target.value }))} required />
-        <input className="w-full rounded border px-3 py-2" placeholder="Origin server (например http://localhost:3000)" value={createData.origin_server} onChange={(e) => setCreateData((p) => ({ ...p, origin_server: e.target.value }))} required />
-        <button className="rounded bg-slate-900 px-4 py-2 text-white">Создать сайт</button>
+        <input className="w-full rounded-lg border px-3 py-2" placeholder="Название" value={createData.name} onChange={(e) => setCreateData((p) => ({ ...p, name: e.target.value }))} required />
+        <input className="w-full rounded-lg border px-3 py-2" placeholder="Домен" value={createData.domain} onChange={(e) => setCreateData((p) => ({ ...p, domain: e.target.value }))} required />
+        <input className="w-full rounded-lg border px-3 py-2" placeholder="Origin server (например http://localhost:3000)" value={createData.origin_server} onChange={(e) => setCreateData((p) => ({ ...p, origin_server: e.target.value }))} required />
+        <button className="rounded-lg bg-slate-900 px-4 py-2 text-white">Создать сайт</button>
       </form>
 
-      <section className="rounded border border-slate-200 bg-white p-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Сайты</h2>
           <button className="rounded border px-3 py-1 text-sm" onClick={() => void loadSites()}>

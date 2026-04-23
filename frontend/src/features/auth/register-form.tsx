@@ -22,7 +22,7 @@ export const RegisterForm = () => {
 
   return (
     <form
-      className="w-full space-y-4 rounded border border-slate-200 bg-white p-6"
+      className="w-full space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
       onSubmit={handleSubmit((v) => {
         setApiError(null);
         registerMutation.mutate(v, {
@@ -44,12 +44,12 @@ export const RegisterForm = () => {
     >
       <h1 className="text-2xl font-semibold">Регистрация</h1>
 
-      <input placeholder="Имя (опционально)" className="w-full rounded border px-3 py-2" {...register('name')} />
+      <input placeholder="Имя (опционально)" className="w-full rounded-lg border px-3 py-2" {...register('name')} />
 
-      <input placeholder="Email" className="w-full rounded border px-3 py-2" {...register('email')} />
+      <input placeholder="Email" className="w-full rounded-lg border px-3 py-2" {...register('email')} />
       {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
 
-      <input type="password" placeholder="Пароль" className="w-full rounded border px-3 py-2" {...register('password')} />
+      <input type="password" placeholder="Пароль" className="w-full rounded-lg border px-3 py-2" {...register('password')} />
       {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
 
       {apiError && <p className="text-sm text-red-600">{apiError}</p>}
@@ -57,7 +57,7 @@ export const RegisterForm = () => {
       <button
         type="submit"
         disabled={registerMutation.isPending}
-        className="w-full rounded bg-slate-900 py-2 text-white disabled:opacity-60"
+        className="w-full rounded-lg bg-slate-900 py-2 text-white disabled:opacity-60"
       >
         {registerMutation.isPending ? 'Создаём аккаунт...' : 'Создать аккаунт'}
       </button>

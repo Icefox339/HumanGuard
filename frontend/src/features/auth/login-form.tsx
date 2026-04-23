@@ -33,7 +33,7 @@ export const LoginForm = () => {
 
   return (
     <form
-      className="w-full space-y-4 rounded border border-slate-200 bg-white p-6"
+      className="w-full space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
       onSubmit={handleSubmit((v) => {
         setApiError(null);
         loginMutation.mutate(v, {
@@ -46,18 +46,18 @@ export const LoginForm = () => {
     >
       <h1 className="text-2xl font-semibold">Вход</h1>
       {registrationHint && <p className="rounded bg-emerald-50 p-2 text-sm text-emerald-700">{registrationHint}</p>}
-      <input placeholder="Email" className="w-full rounded border px-3 py-2" {...register('email')} />
+      <input placeholder="Email" className="w-full rounded-lg border px-3 py-2" {...register('email')} />
       {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
 
-      <input type="password" placeholder="Пароль" className="w-full rounded border px-3 py-2" {...register('password')} />
+      <input type="password" placeholder="Пароль" className="w-full rounded-lg border px-3 py-2" {...register('password')} />
       {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
 
-      <input placeholder="TOTP код (если включён 2FA)" className="w-full rounded border px-3 py-2" {...register('totp_code')} />
+      <input placeholder="TOTP код (если включён 2FA)" className="w-full rounded-lg border px-3 py-2" {...register('totp_code')} />
       {errors.totp_code && <p className="text-sm text-red-600">{errors.totp_code.message}</p>}
 
       {apiError && <p className="text-sm text-red-600">{apiError}</p>}
 
-      <button disabled={loginMutation.isPending} className="w-full rounded bg-slate-900 py-2 text-white disabled:opacity-60">
+      <button disabled={loginMutation.isPending} className="w-full rounded-lg bg-slate-900 py-2 text-white disabled:opacity-60">
         {loginMutation.isPending ? 'Входим...' : 'Войти'}
       </button>
 
