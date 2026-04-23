@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"golang.org/x/crypto/bcrypt"
@@ -13,14 +15,69 @@ type UserHandler struct {
 	storage storage.Storage
 	jwt     *auth.JWTService
 	totp    *auth.TOTPService
+	oauth   *auth.OAuthService
 }
 
-func NewUserHandler(store storage.Storage, jwtService *auth.JWTService, totpService *auth.TOTPService) *UserHandler {
+func NewUserHandler(store storage.Storage, jwtService *auth.JWTService, totpService *auth.TOTPService, oauthService *auth.OAuthService) *UserHandler {
 	return &UserHandler{
 		storage: store,
 		jwt:     jwtService,
 		totp:    totpService,
+		oauth:   oauthService,
 	}
+}
+
+func generateOAuthState() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func (h *UserHandler) KeycloakLogin(w http.ResponseWriter, r *http.Request) {
+	state := generateOAuthState()
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    state,
+		Path:     "/",
+		MaxAge:   600,
+		HttpOnly: true,
+	})
+	url := h.oauth.GetAuthURL(state)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func (h *UserHandler) KeycloakCallback(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+
+	token, err := h.oauth.ExchangeCode(r.Context(), code)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	userInfo, err := h.oauth.GetUserInfo(r.Context(), token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	user, err := h.storage.GetOrCreateUserByOAuth(r.Context(), "keycloak", userInfo.ID, userInfo.Email, userInfo.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jwtToken, err := h.jwt.GenerateToken(user.ID, user.Role)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": jwtToken,
+		"user":  user,
+	})
 }
 
 // GET /api/users/{id}

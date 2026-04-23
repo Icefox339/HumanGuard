@@ -16,7 +16,7 @@ type Storage interface {
 	//	ShareStorage
 	SiteStorage
 	SettingsStorage
-	BlacklistStorage 
+	BlacklistStorage
 	AccessLogStorage
 
 	Close() error
@@ -164,6 +164,7 @@ type UserStorage interface {
 	GetUserByID(ctx context.Context, id string) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	GetUserByOAuth(ctx context.Context, provider, oauthID string) (*User, error)
+	GetOrCreateUserByOAuth(ctx context.Context, provider, oauthID, email, name string) (*User, error)
 	UpdateLastLogin(ctx context.Context, userID string) error
 	UpdatePassword(ctx context.Context, userID, passwordHash string) error
 	UpdateAvatar(ctx context.Context, userID, avatarURL string) error

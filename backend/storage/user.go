@@ -172,6 +172,27 @@ func (s *storage) GetUserByOAuth(ctx context.Context, provider, oauthID string) 
 	return &user, nil
 }
 
+func (s *storage) GetOrCreateUserByOAuth(ctx context.Context, provider, oauthID, email, name string) (*User, error) {
+	user, err := s.GetUserByOAuth(ctx, provider, oauthID)
+	if err == nil {
+		return user, nil
+	}
+
+	newUser := &User{
+		Email:         email,
+		Name:          name,
+		Role:          "user",
+		OAuthProvider: &provider,
+		OAuthID:       &oauthID,
+	}
+
+	if err := s.CreateUser(ctx, newUser); err != nil {
+		return nil, err
+	}
+
+	return newUser, nil
+}
+
 func (s *storage) UpdateUser(ctx context.Context, user *User) error {
 	user.UpdatedAt = time.Now()
 
