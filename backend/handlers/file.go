@@ -81,6 +81,10 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "content-length required"})
 		return
 	}
+	if contentLength > maxUploadSize {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": errFileTooLarge.Error()})
+		return
+	}
 
 	mr, err := r.MultipartReader()
 	if err != nil {
