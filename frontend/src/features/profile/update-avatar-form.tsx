@@ -44,8 +44,8 @@ export const UpdateAvatarForm = ({ onUpdated }: UpdateAvatarFormProps) => {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      setError('Максимальный размер аватарки — 2MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Максимальный размер аватарки — 15MB.');
       event.target.value = '';
       return;
     }
