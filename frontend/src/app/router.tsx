@@ -6,6 +6,7 @@ import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
 import { TwoFaSetupPage } from '@/pages/auth/twofa-setup-page';
 import { DashboardPage } from '@/pages/app/dashboard-page';
+import { FilesPage } from '@/pages/app/files-page';
 import { ProfilePage } from '@/pages/app/profile-page';
 import { SitesPage } from '@/pages/app/sites-page';
 import { SiteCreatePage } from '@/pages/app/site-create-page';
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <DashboardPage /> },
+      { path: 'files', element: <FilesPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'sites', element: <SitesPage /> },
       { path: 'sites/new', element: <SiteCreatePage /> },

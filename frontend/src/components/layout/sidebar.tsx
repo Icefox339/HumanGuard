@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 const links = [
   ['Dashboard', '/dashboard'],
   ['Sites', '/sites'],
+  ['Files', '/files'],
   ['Profile', '/profile'],
   ['Users', '/admin/users']
 ];
