@@ -1,15 +1,17 @@
-import { Outlet } from 'react-router-dom';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
 import { BuildVersion } from '@/components/layout/build-version';
+import { RouteTransition } from '@/components/layout/route-transition';
+import { NavigationProgress } from '@/components/layout/navigation-progress';
 
 export const AppLayout = () => (
   <div className="flex min-h-screen bg-slate-50 text-slate-900">
     <Sidebar />
     <div className="flex flex-1 flex-col">
       <Header />
+      <NavigationProgress />
       <main className="p-6 pb-14">
-        <Outlet />
+        <RouteTransition />
       </main>
     </div>
     <BuildVersion />

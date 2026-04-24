@@ -5,3 +5,131 @@
 body {
   @apply m-0 font-sans text-slate-900 antialiased;
 }
+
+.route-transition {
+  animation: route-fade-in 260ms ease-out;
+}
+
+.interactive-chip {
+  transition: transform 180ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
+  will-change: transform;
+}
+
+.interactive-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -16px rgb(15 23 42 / 65%);
+}
+
+.interactive-chip:active {
+  transform: scale(0.98);
+}
+
+.navigation-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 60;
+}
+
+.navigation-progress::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, #0f172a, #2563eb, #38bdf8);
+  border-radius: 999px;
+  transform: translateX(-100%);
+}
+
+.navigation-progress--active {
+  opacity: 1;
+}
+
+.navigation-progress--active::after {
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+.error-scene {
+  position: relative;
+  overflow: hidden;
+}
+
+.error-orb {
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, rgb(56 189 248 / 35%), rgb(37 99 235 / 15%), transparent 68%);
+  filter: blur(2px);
+  animation: float-orb 4.4s ease-in-out infinite;
+}
+
+.error-code {
+  position: relative;
+  margin: 0 0 0.25rem;
+  font-size: clamp(3rem, 9vw, 5.2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: rgb(15 23 42 / 90%);
+  animation: pulse-code 2.2s ease-in-out infinite;
+}
+
+@keyframes route-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  55% {
+    transform: translateX(140%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@keyframes float-orb {
+  0%,
+  100% {
+    transform: translateY(0px) scale(0.95);
+  }
+  50% {
+    transform: translateY(-12px) scale(1.05);
+  }
+}
+
+@keyframes pulse-code {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-transition,
+  .navigation-progress--active::after,
+  .error-orb,
+  .error-code {
+    animation: none !important;
+  }
+
+  .interactive-chip {
+    transition: none;
+  }
+}

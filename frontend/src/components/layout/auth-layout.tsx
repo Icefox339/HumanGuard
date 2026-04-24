@@ -1,10 +1,12 @@
-import { Outlet } from 'react-router-dom';
 import { BuildVersion } from '@/components/layout/build-version';
+import { RouteTransition } from '@/components/layout/route-transition';
+import { NavigationProgress } from '@/components/layout/navigation-progress';
 
 export const AuthLayout = () => (
   <>
+    <NavigationProgress />
     <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 pb-14">
-      <Outlet />
+      <RouteTransition className="w-full" />
     </main>
     <BuildVersion />
   </>

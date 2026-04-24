@@ -16,15 +16,18 @@ import { SuspiciousSessionsPage } from '@/pages/app/suspicious-sessions-page';
 import { SiteStatsPage } from '@/pages/app/site-stats-page';
 import { NotFoundPage } from '@/pages/app/not-found-page';
 import { UsersPage } from '@/pages/admin/users-page';
+import { RouteErrorPage } from '@/pages/app/route-error-page';
 
 export const router = createBrowserRouter([
   {
     path: '/auth',
     element: <AuthLayout />,
+    errorElement: <RouteErrorPage />,
     children: [
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
-      { path: '2fa-setup', element: <TwoFaSetupPage /> }
+      { path: '2fa-setup', element: <TwoFaSetupPage /> },
+      { path: '*', element: <NotFoundPage /> }
     ]
   },
   {
@@ -34,6 +37,7 @@ export const router = createBrowserRouter([
         <AppLayout />
       </ProtectedRoute>
     ),
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <DashboardPage /> },
@@ -48,5 +52,9 @@ export const router = createBrowserRouter([
       { path: 'admin/users', element: <UsersPage /> },
       { path: '*', element: <NotFoundPage /> }
     ]
+  },
+  {
+    path: '*',
+    element: <NotFoundPage />
   }
 ]);
