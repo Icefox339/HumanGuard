@@ -1,7 +1,7 @@
 import { ChangeEvent, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { API_URL } from '@/lib/constants';
-import { getFiles, ManagedFile, uploadFile } from '@/api/files';
+import { createFileShare, getFiles, ManagedFile, uploadFile } from '@/api/files';
 
 const formatBytes = (bytes: number) => {
   if (bytes === 0) {
@@ -13,7 +13,7 @@ const formatBytes = (bytes: number) => {
 };
 
 type ErrorDetails = {
-  operation: 'upload' | 'list';
+  operation: 'upload' | 'list' | 'share';
   message: string;
   status?: number;
   code?: string;
@@ -25,7 +25,7 @@ type ErrorDetails = {
 };
 
 const buildErrorDetails = (
-  operation: 'upload' | 'list',
+  operation: 'upload' | 'list' | 'share',
   error: unknown,
   file?: File | null
 ): ErrorDetails => {
@@ -54,6 +54,9 @@ export const FilesManager = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
+  const [copiedShareId, setCopiedShareId] = useState<string | null>(null);
 
   const loadFiles = async () => {
     setLoading(true);
@@ -105,6 +108,41 @@ export const FilesManager = () => {
       console.error('[FilesManager] upload failed', details, e);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const normalizeShareUrl = (shareUrl: string) => {
+    try {
+      const url = new URL(shareUrl);
+      const apiBase = new URL(API_URL);
+      if (url.hostname === 'localhost') {
+        url.protocol = apiBase.protocol;
+        url.host = apiBase.host;
+      }
+      return url.toString();
+    } catch {
+      return shareUrl;
+    }
+  };
+
+  const onShareFile = async (fileId: string) => {
+    setError(null);
+    setErrorDetails(null);
+    setSharingId(fileId);
+    try {
+      const share = await createFileShare({ file_id: fileId });
+      const shareUrl = normalizeShareUrl(share.share_url);
+      setShareLinks((prev) => ({ ...prev, [fileId]: shareUrl }));
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedShareId(fileId);
+      setTimeout(() => setCopiedShareId((current) => (current === fileId ? null : current)), 1800);
+    } catch (e) {
+      const details = buildErrorDetails('share', e);
+      setError(details.message);
+      setErrorDetails(details);
+      console.error('[FilesManager] share failed', details, e);
+    } finally {
+      setSharingId(null);
     }
   };
 
@@ -184,10 +222,36 @@ export const FilesManager = () => {
                     {file.created_at ? new Date(file.created_at).toLocaleString() : 'Дата неизвестна'}
                   </p>
                 </div>
-                <a className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" download href={getDownloadUrl(file)} rel="noreferrer" target="_blank">
-                  Скачать
-                </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))] disabled:opacity-60"
+                    disabled={sharingId === file.id}
+                    onClick={() => void onShareFile(file.id)}
+                    type="button"
+                  >
+                    {sharingId === file.id ? 'Генерация...' : 'Поделиться URL'}
+                  </button>
+                  <a className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" download href={getDownloadUrl(file)} rel="noreferrer" target="_blank">
+                    Скачать
+                  </a>
+                </div>
               </div>
+              {shareLinks[file.id] && (
+                <div className="mt-3 rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--bg-main))] p-2">
+                  <p className="mb-1 text-xs text-[rgb(var(--text-secondary))]">Публичная ссылка для скачивания:</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input className="form-input min-w-[16rem] flex-1 rounded px-2 py-1 text-xs" readOnly value={shareLinks[file.id]} />
+                    <button
+                      className="interactive-chip rounded border border-[rgb(var(--border))] px-2 py-1 text-xs text-[rgb(var(--text-primary))]"
+                      onClick={() => void navigator.clipboard.writeText(shareLinks[file.id])}
+                      type="button"
+                    >
+                      Копировать
+                    </button>
+                    {copiedShareId === file.id && <span className="text-xs text-emerald-700">Скопировано</span>}
+                  </div>
+                </div>
+              )}
             </article>
           ))}
         </div>

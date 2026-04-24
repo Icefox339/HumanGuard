@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthLayout } from '@/components/layout/auth-layout';
-import { ProtectedRoute } from '@/components/layout/protected-route';
+import { AdminRoute, ProtectedRoute } from '@/components/layout/protected-route';
 import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
 import { TwoFaSetupPage } from '@/pages/auth/twofa-setup-page';
@@ -51,7 +51,14 @@ export const router = createBrowserRouter([
       { path: 'sites/:siteId/sessions', element: <SiteSessionsPage /> },
       { path: 'sites/:siteId/suspicious', element: <SuspiciousSessionsPage /> },
       { path: 'sites/:siteId/stats', element: <SiteStatsPage /> },
-      { path: 'admin/users', element: <UsersPage /> },
+      {
+        path: 'admin/users',
+        element: (
+          <AdminRoute>
+            <UsersPage />
+          </AdminRoute>
+        )
+      },
       { path: '*', element: <NotFoundPage /> }
     ]
   },
