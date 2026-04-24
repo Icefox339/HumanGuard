@@ -1,120 +1,1029 @@
 openapi: 3.0.0
 info:
   version: 1.0.0
-  title: Swagger Petstore
+  title: HumanGuard API
+  description: Система защиты веб-сайтов от ботов
   license:
     name: MIT
 servers:
-  - url: http://petstore.swagger.io/v1
+  - url: http://localhost:8080
+    description: Локальный сервер
 paths:
-  /pets:
+  /health:
     get:
-      summary: List all pets
-      operationId: listPets
+      summary: Проверка состояния
+      operationId: healthCheck
       tags:
-        - pets
-      parameters:
-        - name: limit
-          in: query
-          description: How many items to return at one time (max 100)
-          required: false
-          schema:
-            type: integer
-            maximum: 100
-            format: int32
+        - Health
       responses:
         '200':
-          description: A paged array of pets
-          headers:
-            x-next:
-              description: A link to the next page of responses
-              schema:
-                type: string
+          description: Сервер работает
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pets'
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
         default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/Error'
+
+  /api/users:
     post:
-      summary: Create a pet
-      operationId: createPets
+      summary: Регистрация
+      operationId: register
       tags:
-        - pets
+        - Auth
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Pet'
-        required: true
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 8
+                  example: securePass123
+                name:
+                  type: string
+                  example: Иван Петров
       responses:
         '201':
-          description: Null response
-        default:
-          description: unexpected error
+          description: Пользователь создан
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-  /pets/{petId}:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  totp_secret:
+                    type: string
+                    example: JBSWY3DPEHPK3PXP
+                  qr_code_url:
+                    type: string
+                    example: otpauth://totp/HumanGuard:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=HumanGuard
+        default:
+          $ref: '#/components/responses/Error'
     get:
-      summary: Info for a specific pet
-      operationId: showPetById
+      summary: Список пользователей
+      operationId: listUsers
       tags:
-        - pets
+        - Users
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/login:
+    post:
+      summary: Вход в систему
+      operationId: login
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, totp_code]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                totp_code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  example: "483921"
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/me:
+    get:
+      summary: Текущий пользователь
+      operationId: getMe
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Данные пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/users/{id}:
+    get:
+      summary: Пользователь по ID
+      operationId: getUser
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
       parameters:
-        - name: petId
+        - name: id
           in: path
           required: true
-          description: The id of the pet to retrieve
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Данные пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      summary: Обновить пользователя
+      operationId: updateUser
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                  enum: [user, admin]
+      responses:
+        '200':
+          description: Обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      summary: Удалить пользователя
+      operationId: deleteUser
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Удалён
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/users/{id}/password:
+    post:
+      summary: Сменить пароль
+      operationId: changePassword
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old_password, new_password]
+              properties:
+                old_password:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        '204':
+          description: Пароль изменён
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sites:
+    get:
+      summary: Список сайтов
+      operationId: listSites
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список сайтов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Site'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      summary: Создать сайт
+      operationId: createSite
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, domain, origin_server]
+              properties:
+                name:
+                  type: string
+                  example: Мой магазин
+                domain:
+                  type: string
+                  example: example-shop.com
+                origin_server:
+                  type: string
+                  format: uri
+                  example: http://10.0.1.100:8080
+      responses:
+        '201':
+          description: Сайт создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sites/{id}:
+    get:
+      summary: Сайт по ID
+      operationId: getSite
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Данные сайта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      summary: Обновить сайт
+      operationId: updateSite
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                origin_server:
+                  type: string
+                  format: uri
+                status:
+                  type: string
+                  enum: [verifying, active, suspended]
+      responses:
+        '200':
+          description: Обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      summary: Удалить сайт
+      operationId: deleteSite
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Удалён
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sites/{id}/settings:
+    get:
+      summary: Настройки сайта
+      operationId: getSiteSettings
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleSettings'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      summary: Обновить настройки
+      operationId: updateSiteSettings
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleSettings'
+      responses:
+        '200':
+          description: Обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleSettings'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sessions:
+    post:
+      summary: Создать сессию
+      operationId: createSession
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [site_id, ip]
+              properties:
+                site_id:
+                  type: string
+                  format: uuid
+                ip:
+                  type: string
+                user_agent:
+                  type: string
+                device:
+                  type: string
+                location:
+                  type: string
+      responses:
+        '201':
+          description: Сессия создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sessions/{id}:
+    get:
+      summary: Сессия по ID
+      operationId: getSession
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Данные сессии
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sessions/{id}/block:
+    post:
+      summary: Заблокировать сессию
+      operationId: blockSession
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Заблокирована
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sessions/{id}/unblock:
+    post:
+      summary: Разблокировать сессию
+      operationId: unblockSession
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Разблокирована
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sessions/{id}/risk:
+    patch:
+      summary: Обновить риск
+      operationId: updateRisk
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [risk_score]
+              properties:
+                risk_score:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+      responses:
+        '204':
+          description: Обновлён
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sites/{id}/sessions:
+    get:
+      summary: Сессии сайта
+      operationId: getSiteSessions
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Список сессий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/sites/{id}/stats:
+    get:
+      summary: Статистика сайта
+      operationId: getSiteStats
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Статистика
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStats'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/files/upload:
+    post:
+      summary: Загрузить файл
+      operationId: uploadFile
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Файл загружен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileRecord'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/files:
+    get:
+      summary: Список файлов
+      operationId: listFiles
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список файлов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileRecord'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/files/{id}:
+    get:
+      summary: Скачать файл
+      operationId: downloadFile
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Файл
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      summary: Удалить файл
+      operationId: deleteFile
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Удалён
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/files/share:
+    post:
+      summary: Поделиться файлом
+      operationId: shareFile
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_id]
+              properties:
+                file_id:
+                  type: string
+                  format: uuid
+                expires_in_hours:
+                  type: integer
+      responses:
+        '200':
+          description: Ссылка создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  share_url:
+                    type: string
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/files/share/{token}:
+    get:
+      summary: Скачать по шаринг-ссылке
+      operationId: downloadByShare
+      tags:
+        - Files
+      parameters:
+        - name: token
+          in: path
+          required: true
           schema:
             type: string
       responses:
         '200':
-          description: Expected response to a valid request
+          description: Файл
           content:
-            application/json:
+            application/octet-stream:
               schema:
-                $ref: '#/components/schemas/Pet'
+                type: string
+                format: binary
         default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/Error'
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
-    Pet:
-      type: object
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-        tag:
-          type: string
-    Pets:
-      type: array
-      maxItems: 100
-      items:
-        $ref: '#/components/schemas/Pet'
     Error:
       type: object
-      required:
-        - code
-        - message
+      required: [title, detail, requestId, timestamp]
       properties:
-        code:
-          type: integer
-          format: int32
-        message:
+        title:
           type: string
+          example: Bad Request
+        detail:
+          type: string
+          example: Invalid request body
+        requestId:
+          type: string
+          format: uuid
+          example: 018f4e8b-1234-7abc-9def-0123456789ab
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-04-24T12:00:00Z"
 
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [user, admin]
+        is_verified:
+          type: boolean
+        oauth_provider:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_login:
+          type: string
+          format: date-time
+          nullable: true
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        site_id:
+          type: string
+          format: uuid
+        ip:
+          type: string
+        user_agent:
+          type: string
+        device:
+          type: string
+        location:
+          type: string
+        is_active:
+          type: boolean
+        risk_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        is_blocked:
+          type: boolean
+        captcha_shown:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        last_activity:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    SessionStats:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+        active:
+          type: integer
+          format: int64
+        blocked:
+          type: integer
+          format: int64
+        avg_risk:
+          type: number
+          format: float
+        unique_ips:
+          type: integer
+          format: int64
+
+    Site:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        domain:
+          type: string
+        origin_server:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [verifying, active, suspended]
+        settings:
+          $ref: '#/components/schemas/ModuleSettings'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ModuleSettings:
+      type: object
+      properties:
+        collector:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            mouse_tracking:
+              type: boolean
+            click_tracking:
+              type: boolean
+            scroll_tracking:
+              type: boolean
+            keystroke_tracking:
+              type: boolean
+            fingerprint_enabled:
+              type: boolean
+        analyzer:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            rate_limiting:
+              type: boolean
+            pattern_analysis:
+              type: boolean
+            headless_detection:
+              type: boolean
+            thresholds:
+              type: object
+              properties:
+                low:
+                  type: integer
+                medium:
+                  type: integer
+                high:
+                  type: integer
+        reaction:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            low_risk_action:
+              type: string
+              enum: [allow, log]
+            medium_risk_action:
+              type: string
+              enum: [allow, captcha, challenge]
+            high_risk_action:
+              type: string
+              enum: [block, captcha, redirect]
+            block_duration:
+              type: integer
+            captcha_provider:
+              type: string
+              enum: [hcaptcha, recaptcha]
+
+    FileRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        original_name:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mime_type:
+          type: string
+        hash:
+          type: string
+        path:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+  responses:
+    Error:
+      description: Ошибка
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

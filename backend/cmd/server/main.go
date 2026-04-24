@@ -25,7 +25,7 @@ func main() {
 
 func connectToDatabase() storage.Storage {
 	cfg := &storage.Config{
-		DBURL:       getEnv("DATABASE_URL", "postgres://postgres:123@localhost:5432/humanguard?sslmode=disable"),
+		DBURL:       getEnv("DATABASE_URL", "postgres://postgres:123@postgres:5432/humanguard?sslmode=disable"),
 		UploadDir:   getEnv("UPLOAD_DIR", "./data/uploads"),
 		MaxFileSize: 100 * 1024 * 1024,
 	}
