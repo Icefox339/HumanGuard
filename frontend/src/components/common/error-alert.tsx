@@ -6,8 +6,8 @@ type ErrorAlertProps = {
 };
 
 export const ErrorAlert = ({ title = 'Ошибка', message }: ErrorAlertProps) => (
-  <div className="route-transition rounded-xl border border-rose-200 bg-rose-50/70 px-4 py-3 text-rose-800" role="alert">
+  <div className="theme-error route-transition rounded-xl px-4 py-3" role="alert">
     <p className="text-sm font-semibold">{title}</p>
-    <div className="mt-1 text-sm text-rose-700">{message}</div>
+    <div className="theme-error-subtle mt-1 text-sm">{message}</div>
   </div>
 );

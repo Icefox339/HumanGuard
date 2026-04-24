@@ -18,13 +18,13 @@ export const TwoFaSetupPage = () => {
   }
 
   return (
-    <section className="w-full space-y-4 rounded border border-slate-200 bg-white p-6">
-      <h1 className="text-2xl font-semibold">Настройка 2FA</h1>
-      <p className="text-sm text-slate-600">
+    <section className="auth-card w-full space-y-4 rounded-2xl p-6">
+      <h1 className="text-2xl font-semibold text-[rgb(var(--text-primary))]">Настройка 2FA</h1>
+      <p className="theme-text-muted text-sm">
         Отсканируй QR-код в Google Authenticator / Authy, затем используй код из приложения при логине.
       </p>
 
-      <div className="flex justify-center rounded border border-slate-200 bg-white p-4">
+      <div className="theme-info flex justify-center rounded-xl p-4">
         <img src={toQrImageUrl(state.qr_code_url)} alt="2FA QR code" className="h-64 w-64" />
       </div>
 
@@ -34,12 +34,12 @@ export const TwoFaSetupPage = () => {
       <p className="text-sm">
         <span className="font-medium">Секрет (backup):</span> <code>{state.totp_secret}</code>
       </p>
-      <p className="text-xs text-slate-500 break-all">OTPAUTH URL: {state.qr_code_url}</p>
+      <p className="theme-text-muted break-all text-xs">OTPAUTH URL: {state.qr_code_url}</p>
 
       <Link
         to="/auth/login"
         state={{ message: '2FA настроен. Введи email, пароль и код из приложения.' }}
-        className="inline-block rounded bg-slate-900 px-4 py-2 text-white"
+        className="interactive-chip theme-button inline-block px-4 py-2"
       >
         Перейти ко входу
       </Link>
