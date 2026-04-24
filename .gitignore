@@ -1,5 +1,6 @@
 digest.txt
 TAGS
+data/uploads/
 frontend/dist
 frontend/node_modules
 frontend/*.tsbuildinfo
