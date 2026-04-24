@@ -1,13 +1,26 @@
-import { useNavigation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+
+const PROGRESS_VISIBLE_MS = 550;
 
 export const NavigationProgress = () => {
-  const navigation = useNavigation();
-  const isLoading = navigation.state !== 'idle';
+  const location = useLocation();
+  const [isAnimating, setIsAnimating] = useState(false);
+  const isFirstRender = useRef(true);
 
-  return (
-    <div
-      className={isLoading ? 'navigation-progress navigation-progress--active' : 'navigation-progress'}
-      aria-hidden={!isLoading}
-    />
-  );
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    setIsAnimating(true);
+    const timer = window.setTimeout(() => {
+      setIsAnimating(false);
+    }, PROGRESS_VISIBLE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [location.pathname, location.search, location.hash]);
+
+  return <div className={isAnimating ? 'navigation-progress navigation-progress--active' : 'navigation-progress'} aria-hidden={!isAnimating} />;
 };
