@@ -27,7 +27,7 @@ func (s *storage) GetFileByShareToken(ctx context.Context, token string) (*FileR
 		SELECT f.id, f.user_id, f.name, f.original_name, f.size, f.mime_type, f.hash, f.path, f.created_at
 		FROM files f
 		JOIN shares s ON f.id = s.file_id
-		WHERE s.token = $1 AND (s.expires_at IS NULL OR s.expires_at > NOW())
+		WHERE s.token = $1 AND (s.expires_at IS NULL OR s.expires_at < '1970-01-01' OR s.expires_at > NOW())
 	`
 
 	var file FileRecord

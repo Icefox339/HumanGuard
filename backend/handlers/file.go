@@ -1,3 +1,4 @@
+// backend/handlers/file.go
 package handlers
 
 import (
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"humanguard/auth"
 	"humanguard/storage"
 
 	"github.com/google/uuid"
@@ -66,7 +68,11 @@ func NewFileHandler(store storage.Storage, s3 storage.S3Client) *FileHandler {
 func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 5<<30)
 
-	userID := r.Context().Value("userID").(string)
+	userID := auth.GetUserID(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
 
 	contentLength := r.ContentLength
 	if contentLength <= 0 {
@@ -114,7 +120,6 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			path := fmt.Sprintf("%s/%s/%s", userID, time.Now().Format("2006/01/02"), safeName)
 
 			hasher := sha256.New()
-
 			buf := make([]byte, 32*1024)
 			pr, pw := io.Pipe()
 
@@ -219,7 +224,11 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("userID").(string)
+	userID := auth.GetUserID(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
 
 	files, err := h.store.ListUserFiles(r.Context(), userID)
 	if err != nil {
@@ -245,7 +254,11 @@ func (h *FileHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.Context().Value("userID").(string)
+	userID := auth.GetUserID(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
 
 	b := make([]byte, 32)
 	rand.Read(b)

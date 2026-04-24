@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: humanguard-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: humanguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - backend_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d humanguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    image: backend-image:latest
+    container_name: humanguard-backend
+    environment:
+      TEST: 0
+    ports:
+      - "8080:8080"
+    networks:
+      - backend_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+
+networks:
+  backend_network:
+    driver: bridge
