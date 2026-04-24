@@ -35,6 +35,7 @@ export const LoginForm = () => {
   const registrationHint = location.state && typeof location.state === 'object' && 'message' in location.state
     ? String(location.state.message)
     : null;
+  const isTotpError = apiError?.toLowerCase().includes('totp') || apiError?.toLowerCase().includes('код') || false;
 
   return (
     <form
@@ -50,7 +51,7 @@ export const LoginForm = () => {
       })}
     >
       <h1 className="text-2xl font-semibold text-[rgb(var(--text-primary))]">Вход</h1>
-      {registrationHint && <p className="rounded-lg bg-emerald-100/80 p-2 text-sm text-emerald-700">{registrationHint}</p>}
+      {registrationHint && <p className="theme-success rounded-lg p-2 text-sm">{registrationHint}</p>}
 
       <div className="space-y-1.5">
         <input placeholder="Email" className="auth-input w-full rounded-lg px-3 py-2" {...register('email')} />
@@ -69,15 +70,15 @@ export const LoginForm = () => {
         {errors.totp_code && <p className="field-error">{errors.totp_code.message}</p>}
       </div>
 
-      {apiError && <ErrorAlert message={apiError} />}
+      {apiError && <ErrorAlert title={isTotpError ? 'Неверный код 2FA' : 'Ошибка входа'} message={apiError} />}
 
       <button disabled={loginMutation.isPending} className="interactive-chip theme-button w-full py-2 disabled:opacity-60">
         {loginMutation.isPending ? 'Входим...' : 'Войти'}
       </button>
 
-      <p className="text-sm text-[rgb(var(--text-secondary))]">
+      <p className="theme-text-muted text-sm">
         Нет аккаунта?{' '}
-        <Link className="font-medium text-[rgb(var(--accent))] underline" to="/auth/register">
+        <Link className="theme-link font-semibold underline" to="/auth/register">
           Зарегистрироваться
         </Link>
       </p>

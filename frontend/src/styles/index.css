@@ -39,6 +39,7 @@ body {
   @apply m-0 font-sans antialiased;
   background: rgb(var(--bg-main));
   color: rgb(var(--text-primary));
+  font-weight: 500;
 }
 
 .app-shell {
@@ -138,10 +139,42 @@ body {
 .auth-hint {
   font-size: 0.75rem;
   color: rgb(var(--text-secondary));
+  font-weight: 500;
 }
 
 .field-error {
   font-size: 0.875rem;
+  color: rgb(190 24 93);
+  font-weight: 600;
+}
+
+.theme-text-muted {
+  color: rgb(var(--text-secondary));
+}
+
+.theme-link {
+  color: rgb(var(--accent));
+}
+
+.theme-success {
+  border: 1px solid rgb(var(--accent-soft) / 0.35);
+  background: rgb(var(--accent-soft) / 0.12);
+  color: rgb(var(--text-primary));
+}
+
+.theme-info {
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--bg-main));
+  color: rgb(var(--text-primary));
+}
+
+.theme-error {
+  border: 1px solid rgb(244 63 94 / 0.35);
+  background: rgb(244 63 94 / 0.1);
+  color: rgb(var(--text-primary));
+}
+
+.theme-error-subtle {
   color: rgb(225 29 72);
 }
 
