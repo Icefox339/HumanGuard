@@ -9,6 +9,16 @@ export type ManagedFile = {
   created_at?: string;
 };
 
+export type CreateFileSharePayload = {
+  file_id: string;
+  expires_in_hours?: number;
+};
+
+export type CreateFileShareResponse = {
+  token: string;
+  share_url: string;
+};
+
 export const getFiles = () => api.get<ManagedFile[]>('/files').then(({ data }) => data);
 
 export const uploadFile = (
@@ -32,3 +42,6 @@ export const uploadFile = (
     })
     .then(({ data }) => data);
 };
+
+export const createFileShare = (payload: CreateFileSharePayload) =>
+  api.post<CreateFileShareResponse>('/files/share', payload).then(({ data }) => data);
