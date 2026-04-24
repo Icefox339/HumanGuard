@@ -60,6 +60,52 @@ func (s *storage) CreateUser(ctx context.Context, user *User) error {
 	return nil
 }
 
+func (s *storage) ListUsers(ctx context.Context) ([]*User, error) {
+	query := `
+		SELECT
+			id, email, name, avatar_url, role,
+			totp_secret, password_hash,
+			oauth_provider, oauth_id,
+			created_at, updated_at, last_login
+		FROM users
+		ORDER BY created_at DESC
+	`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+
+	users := make([]*User, 0)
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(
+			&user.ID,
+			&user.Email,
+			&user.Name,
+			&user.AvatarURL,
+			&user.Role,
+			&user.TOTPSecret,
+			&user.PasswordHash,
+			&user.OAuthProvider,
+			&user.OAuthID,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+			&user.LastLogin,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, &user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate users: %w", err)
+	}
+
+	return users, nil
+}
+
 func (s *storage) GetUserByID(ctx context.Context, id string) (*User, error) {
 	query := `
 		SELECT
