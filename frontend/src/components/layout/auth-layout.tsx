@@ -5,9 +5,11 @@ import { NavigationProgress } from '@/components/layout/navigation-progress';
 export const AuthLayout = () => (
   <>
     <NavigationProgress />
-    <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 pb-14">
-      <RouteTransition className="w-full" />
-    </main>
+    <div className="auth-gradient-shell">
+      <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 pb-14">
+        <RouteTransition className="w-full" />
+      </main>
+    </div>
     <BuildVersion />
   </>
 );

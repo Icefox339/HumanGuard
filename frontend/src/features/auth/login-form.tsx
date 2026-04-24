@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AxiosError } from 'axios';
 import { useAuth } from '@/features/auth/use-auth';
+import { ErrorAlert } from '@/components/common/error-alert';
 
 const schema = z.object({
   email: z.string().email('Введите корректный email'),
@@ -19,7 +20,11 @@ export const LoginForm = () => {
   const location = useLocation();
   const [apiError, setApiError] = useState<string | null>(null);
   const { loginMutation } = useAuth();
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
     if (loginMutation.isSuccess) {
@@ -33,7 +38,7 @@ export const LoginForm = () => {
 
   return (
     <form
-      className="w-full space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      className="auth-card w-full space-y-4 rounded-2xl p-6"
       onSubmit={handleSubmit((v) => {
         setApiError(null);
         loginMutation.mutate(v, {
@@ -44,26 +49,35 @@ export const LoginForm = () => {
         });
       })}
     >
-      <h1 className="text-2xl font-semibold">Вход</h1>
-      {registrationHint && <p className="rounded bg-emerald-50 p-2 text-sm text-emerald-700">{registrationHint}</p>}
-      <input placeholder="Email" className="w-full rounded-lg border px-3 py-2" {...register('email')} />
-      {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
+      <h1 className="text-2xl font-semibold text-[rgb(var(--text-primary))]">Вход</h1>
+      {registrationHint && <p className="rounded-lg bg-emerald-100/80 p-2 text-sm text-emerald-700">{registrationHint}</p>}
 
-      <input type="password" placeholder="Пароль" className="w-full rounded-lg border px-3 py-2" {...register('password')} />
-      {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
+      <div className="space-y-1.5">
+        <input placeholder="Email" className="auth-input w-full rounded-lg px-3 py-2" {...register('email')} />
+        <p className="auth-hint">Введите корректный email (например, name@example.com).</p>
+        {errors.email && <p className="field-error">{errors.email.message}</p>}
+      </div>
 
-      <input placeholder="TOTP код (если включён 2FA)" className="w-full rounded-lg border px-3 py-2" {...register('totp_code')} />
-      {errors.totp_code && <p className="text-sm text-red-600">{errors.totp_code.message}</p>}
+      <div className="space-y-1.5">
+        <input type="password" placeholder="Пароль" className="auth-input w-full rounded-lg px-3 py-2" {...register('password')} />
+        <p className="auth-hint">Пароль должен быть минимум 8 символов.</p>
+        {errors.password && <p className="field-error">{errors.password.message}</p>}
+      </div>
 
-      {apiError && <p className="text-sm text-red-600">{apiError}</p>}
+      <div className="space-y-1.5">
+        <input placeholder="TOTP код (если включён 2FA)" className="auth-input w-full rounded-lg px-3 py-2" {...register('totp_code')} />
+        {errors.totp_code && <p className="field-error">{errors.totp_code.message}</p>}
+      </div>
 
-      <button disabled={loginMutation.isPending} className="w-full rounded-lg bg-slate-900 py-2 text-white disabled:opacity-60">
+      {apiError && <ErrorAlert message={apiError} />}
+
+      <button disabled={loginMutation.isPending} className="interactive-chip theme-button w-full py-2 disabled:opacity-60">
         {loginMutation.isPending ? 'Входим...' : 'Войти'}
       </button>
 
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-[rgb(var(--text-secondary))]">
         Нет аккаунта?{' '}
-        <Link className="text-slate-900 underline" to="/auth/register">
+        <Link className="font-medium text-[rgb(var(--accent))] underline" to="/auth/register">
           Зарегистрироваться
         </Link>
       </p>
