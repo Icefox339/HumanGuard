@@ -92,7 +92,10 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uploadID := uuid.New().String()
+	uploadID := r.URL.Query().Get("upload_id")
+	if uploadID == "" {
+		uploadID = uuid.New().String()
+	}
 	h.mu.Lock()
 	h.progress[uploadID] = &UploadProgress{
 		UploadID:   uploadID,

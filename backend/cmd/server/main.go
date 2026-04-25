@@ -123,6 +123,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	fileHandler := handlers.NewFileHandler(store, fs)
 
 	mux.Handle("POST /api/files/upload", authMiddleware(http.HandlerFunc(fileHandler.Upload)))
+	mux.HandleFunc("GET /api/files/upload/progress/ws", fileHandler.UploadProgressWS)
 	mux.Handle("GET /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Download)))
 	mux.Handle("DELETE /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Delete)))
 	mux.Handle("GET /api/files", authMiddleware(http.HandlerFunc(fileHandler.List)))

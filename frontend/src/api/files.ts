@@ -23,13 +23,14 @@ export const getFiles = () => api.get<ManagedFile[]>('/files').then(({ data }) =
 
 export const uploadFile = (
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  uploadId?: string
 ) => {
   const formData = new FormData();
   formData.append('file', file);
 
   return api
-    .post<ManagedFile>('/files/upload', formData, {
+    .post<ManagedFile>(`/files/upload${uploadId ? `?upload_id=${encodeURIComponent(uploadId)}` : ''}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (event) => {
         if (!event.total || !onProgress) {

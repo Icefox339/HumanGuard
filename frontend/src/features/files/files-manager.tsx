@@ -45,6 +45,11 @@ const buildErrorDetails = (
 };
 
 const getDownloadUrl = (file: ManagedFile) => `${API_URL}/api/files/${file.id}`;
+const getUploadProgressWsUrl = (uploadId: string) => {
+  const base = new URL(API_URL);
+  base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${base.toString().replace(/\/$/, '')}/api/files/upload/progress/ws?upload_id=${encodeURIComponent(uploadId)}`;
+};
 
 export const FilesManager = () => {
   const [files, setFiles] = useState<ManagedFile[]>([]);
@@ -96,9 +101,23 @@ export const FilesManager = () => {
     setErrorDetails(null);
     setUploading(true);
     setUploadProgress(0);
+    const uploadId = crypto.randomUUID();
+    const ws = new WebSocket(getUploadProgressWsUrl(uploadId));
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as { percentage?: number };
+        const nextProgress = payload.percentage;
+        if (typeof nextProgress === 'number') {
+          setUploadProgress((current) => Math.max(current, nextProgress));
+        }
+      } catch {
+        // ignore malformed WS payload
+      }
+    };
 
     try {
-      const uploaded = await uploadFile(selectedFile, setUploadProgress);
+      const uploaded = await uploadFile(selectedFile, setUploadProgress, uploadId);
       setFiles((prev) => [uploaded, ...prev]);
       setSelectedFile(null);
     } catch (e) {
@@ -107,6 +126,7 @@ export const FilesManager = () => {
       setErrorDetails(details);
       console.error('[FilesManager] upload failed', details, e);
     } finally {
+      ws.close();
       setUploading(false);
     }
   };
