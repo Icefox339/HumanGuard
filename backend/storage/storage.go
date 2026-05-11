@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json" 
 	"crypto/rand"
 	"encoding/hex"
 	"github.com/google/uuid"
@@ -93,6 +94,7 @@ type AnalyzerSettings struct {
 }
 
 
+
 type AnalyzerThreshold struct {
 	Low    int `json:"low"`
 	Medium int `json:"medium"`
@@ -127,6 +129,14 @@ type BlacklistEntry struct {
 	Reason    string     `json:"reason"`
 	CreatedAt time.Time  `json:"created_at"`
 	ExpiresAt *time.Time `json:"expires_at"`
+}
+
+type BehaviorEvent struct {
+    ID         string          `json:"id"`
+    SessionID  string          `json:"session_id"`
+    EventType  string          `json:"event_type"`
+    EventData  json.RawMessage `json:"event_data"`
+    RecordedAt time.Time       `json:"recorded_at"`
 }
 
 type AccessLog struct {
@@ -230,6 +240,10 @@ type SessionStorage interface {
 	MarkCaptchaShown(ctx context.Context, id string) error
 	CleanupExpiredSessions(ctx context.Context) (int64, error)
 	GetSessionStats(ctx context.Context, siteID string) (*SessionStats, error)
+
+	UpdateFingerprint(ctx context.Context, id string, fingerprint string) error
+    GetFingerprint(ctx context.Context, id string) (string, error)
+    RecordBehaviorEvent(ctx context.Context, event *BehaviorEvent) error
 }
 
 type SiteStorage interface {
