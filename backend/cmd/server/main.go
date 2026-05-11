@@ -121,7 +121,10 @@ func startHTTPServer(store storage.Storage) *http.Server {
 
 	fs := storage.NewLocalS3("./data/uploads")
 	fileHandler := handlers.NewFileHandler(store, fs)
+	behaviorHandler := handlers.NewBehaviorHandler(store)
 
+	mux.Handle("POST /api/sessions/{id}/behavior", authMiddleware(http.HandlerFunc(behaviorHandler.SubmitBehavior)))
+	mux.Handle("POST /api/sessions/{id}/analyze", authMiddleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
 	mux.Handle("POST /api/files/upload", authMiddleware(http.HandlerFunc(fileHandler.Upload)))
 	mux.Handle("GET /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Download)))
 	mux.Handle("DELETE /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Delete)))

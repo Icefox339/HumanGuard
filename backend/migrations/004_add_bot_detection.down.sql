@@ -1,6 +1,3 @@
-DROP INDEX IF EXISTS idx_sessions_fingerprint;
-DROP INDEX IF EXISTS idx_be_type;
-DROP INDEX IF EXISTS idx_be_recorded;
-DROP INDEX IF EXISTS idx_be_session;
+DROP INDEX IF EXISTS idx_sessions_metrics;
+ALTER TABLE sessions DROP COLUMN IF EXISTS metrics;
 ALTER TABLE sessions DROP COLUMN IF EXISTS fingerprint;
-DROP TABLE IF EXISTS behavior_events;

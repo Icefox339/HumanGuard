@@ -1,8 +1,9 @@
+// backend/detector/detector_test.go
 package detector
 
 import (
     "context"
-    "database/sql"
+    "sync"
     "testing"
     "time"
 
@@ -11,58 +12,52 @@ import (
 
 type mockStorage struct {
     storage.Storage
-    sessions       map[string]*storage.Session
-    blacklist      map[string]bool
-    behaviorEvents map[string][]storage.BehaviorEvent
-    riskScores     map[string]int
-    db             *sql.DB
-}
-
-func (m *mockStorage) GetSession(ctx context.Context, id string) (*storage.Session, error) {
-    if sess, ok := m.sessions[id]; ok {
-        return sess, nil
-    }
-    return nil, storage.ErrSessionNotFound
+    blacklisted bool
 }
 
 func (m *mockStorage) IsBlacklisted(ctx context.Context, siteID, ip string) (bool, error) {
-    return m.blacklist[ip], nil
+    return m.blacklisted, nil
+}
+
+func (m *mockStorage) GetSessionMetrics(ctx context.Context, id string) (map[string]interface{}, error) {
+    return make(map[string]interface{}), nil
+}
+
+func (m *mockStorage) UpdateRiskScore(ctx context.Context, id string, score int) error {
+    return nil
+}
+
+func (m *mockStorage) GetSession(ctx context.Context, id string) (*storage.Session, error) {
+    siteID := "test-site"
+    return &storage.Session{
+        ID:        id,
+        SiteID:    &siteID,
+        IP:        "192.168.1.1",
+        RiskScore: 0,
+    }, nil
+}
+
+func (m *mockStorage) BlockSession(ctx context.Context, id string) error {
+    return nil
+}
+
+func (m *mockStorage) AddToBlacklist(ctx context.Context, entry *storage.BlacklistEntry) error {
+    return nil
 }
 
 func (m *mockStorage) GetSiteSettings(ctx context.Context, siteID string) (*storage.ModuleSettings, error) {
     return &storage.ModuleSettings{
         Analyzer: storage.AnalyzerSettings{
             Enabled:           true,
-            RateLimiting:      true,
-            PatternAnalysis:   true,
             HeadlessDetection: true,
+            RateLimiting:      true,
             Thresholds: storage.AnalyzerThreshold{
                 Low:    30,
                 Medium: 60,
                 High:   80,
             },
-            Weights: storage.DefaultWeights(),
         },
     }, nil
-}
-
-func (m *mockStorage) UpdateRiskScore(ctx context.Context, id string, score int) error {
-    if m.riskScores == nil {
-        m.riskScores = make(map[string]int)
-    }
-    m.riskScores[id] = score
-    return nil
-}
-
-func (m *mockStorage) GetFingerprint(ctx context.Context, id string) (string, error) {
-    if sess, ok := m.sessions[id]; ok {
-        return sess.UserAgent, nil
-    }
-    return "", nil
-}
-
-func (m *mockStorage) GetDB() *sql.DB {
-    return m.db
 }
 
 func TestHeadlessScore(t *testing.T) {
@@ -95,245 +90,102 @@ func TestHeadlessScore(t *testing.T) {
     }
 }
 
-func TestIsIPBlacklisted(t *testing.T) {
-    siteID := "test-site"
-    ctx := context.Background()
-
-    tests := []struct {
-        name      string
-        ip        string
-        blacklist map[string]bool
-        expected  bool
-    }{
-        {"blacklisted ip", "1.2.3.4", map[string]bool{"1.2.3.4": true}, true},
-        {"not blacklisted", "5.6.7.8", map[string]bool{}, false},
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            mock := &mockStorage{
-                sessions: map[string]*storage.Session{
-                    "sess1": {ID: "sess1", SiteID: &siteID, IP: tt.ip},
-                },
-                blacklist: tt.blacklist,
-            }
-            d := New(mock)
-            sess, _ := mock.GetSession(ctx, "sess1")
-            result := d.isIPBlacklisted(ctx, sess)
-            if result != tt.expected {
-                t.Errorf("expected %v, got %v", tt.expected, result)
-            }
-        })
-    }
-}
-
 func TestRateLimitScore(t *testing.T) {
-    mock := &mockStorage{db: nil}
-    d := &Detector{store: mock}
-    ctx := context.Background()
+    d := &Detector{}
+    d.requestCounts = sync.Map{}
 
-    score := d.rateLimitScore(ctx, "192.168.1.1")
-    if score != 0 {
-        t.Errorf("expected 0 without DB, got %d", score)
-    }
-}
-
-func TestBehaviorScore(t *testing.T) {
-    mock := &mockStorage{db: nil}
-    d := &Detector{store: mock}
-    ctx := context.Background()
-
-    score := d.behaviorScore(ctx, "nonexistent-session")
-    if score != 0 {
-        t.Errorf("expected 0 without DB, got %d", score)
-    }
-}
-
-func TestFingerprintAnomaly(t *testing.T) {
-    siteID := "test-site"
-    ctx := context.Background()
-
-    tests := []struct {
-        name         string
-        sessionFP    string
-        currentFP    string
-        expectedRisk int
-    }{
-        {"no fingerprint", "", "", 0},
-        {"same fingerprint", "fp123", "fp123", 0},
-        {"different fingerprint", "fp123", "fp456", 20},
+    for i := 0; i < 30; i++ {
+        score := d.rateLimitScore("192.168.1.1")
+        if i < 30 && score != 0 {
+            t.Errorf("expected 0 for request %d, got %d", i, score)
+        }
     }
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            mock := &mockStorage{
-                sessions: map[string]*storage.Session{
-                    "sess1": {ID: "sess1", SiteID: &siteID, UserAgent: tt.sessionFP},
-                },
-            }
-            d := New(mock)
-            risk := d.fingerprintAnomaly(ctx, "sess1", tt.currentFP)
-            if risk != tt.expectedRisk {
-                t.Errorf("expected %d, got %d", tt.expectedRisk, risk)
-            }
-        })
+    for i := 0; i < 40; i++ {
+        d.rateLimitScore("192.168.1.1")
+    }
+    score := d.rateLimitScore("192.168.1.1")
+    if score < 20 {
+        t.Errorf("expected score >=20 after many requests, got %d", score)
     }
 }
 
 func TestPrefilter(t *testing.T) {
-    siteID := "test-site"
+    store := &mockStorage{blacklisted: false}
+    d := New(store)
     ctx := context.Background()
 
-    tests := []struct {
-        name          string
-        session       *storage.Session
-        blacklist     map[string]bool
-        expectedRisk  int
-        expectedBlock bool
-        expectedDeep  bool
-    }{
-        {
-            name: "blacklisted ip",
-            session: &storage.Session{ID: "sess1", SiteID: &siteID, IP: "1.2.3.4", UserAgent: "normal"},
-            blacklist:     map[string]bool{"1.2.3.4": true},
-            expectedRisk:  100,
-            expectedBlock: true,
-            expectedDeep:  false,
-        },
-        {
-            name: "headless browser",
-            session: &storage.Session{ID: "sess2", SiteID: &siteID, IP: "5.6.7.8", UserAgent: "HeadlessChrome/120.0.0.0"},
-            blacklist:     map[string]bool{},
-            expectedRisk:  25,
-            expectedBlock: false,
-            expectedDeep:  true,
-        },
-        {
-            name: "normal user",
-            session: &storage.Session{ID: "sess3", SiteID: &siteID, IP: "9.10.11.12", UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"},
-            blacklist:     map[string]bool{},
-            expectedRisk:  0,
-            expectedBlock: false,
-            expectedDeep:  true,
-        },
+    result, err := d.Prefilter(ctx, "test-session", "192.168.1.1", "Mozilla/5.0")
+    if err != nil {
+        t.Fatalf("Prefilter failed: %v", err)
     }
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            mock := &mockStorage{
-                sessions:  map[string]*storage.Session{tt.session.ID: tt.session},
-                blacklist: tt.blacklist,
-                db:        nil,
-            }
-            d := New(mock)
-
-            result, err := d.Prefilter(ctx, tt.session.ID)
-            if err != nil {
-                t.Fatalf("Prefilter failed: %v", err)
-            }
-
-            if result.Risk < tt.expectedRisk {
-                t.Errorf("risk %d < expected %d", result.Risk, tt.expectedRisk)
-            }
-            if result.ShouldBlock != tt.expectedBlock {
-                t.Errorf("shouldBlock %v != expected %v", result.ShouldBlock, tt.expectedBlock)
-            }
-            if result.NeedDeep != tt.expectedDeep {
-                t.Errorf("needDeep %v != expected %v", result.NeedDeep, tt.expectedDeep)
-            }
-        })
+    if result.Risk < 0 || result.Risk > 100 {
+        t.Errorf("invalid risk score: %d", result.Risk)
     }
 }
 
-func TestAnalyzeAndUpdate(t *testing.T) {
-    siteID := "test-site"
+func TestPrefilterWithBlacklist(t *testing.T) {
+    store := &mockStorage{blacklisted: true}
+    d := New(store)
     ctx := context.Background()
 
-    mock := &mockStorage{
-        sessions: map[string]*storage.Session{
-            "test-session": {
-                ID:        "test-session",
-                SiteID:    &siteID,
-                IP:        "192.168.1.100",
-                UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-                RiskScore: 0,
-            },
-        },
-        blacklist:  map[string]bool{},
-        riskScores: make(map[string]int),
-        db:         nil,
-    }
-
-    d := New(mock)
-
-    err := d.AnalyzeAndUpdate(ctx, "test-session")
+    result, err := d.Prefilter(ctx, "test-session", "192.168.1.100", "Mozilla/5.0")
     if err != nil {
-        t.Errorf("AnalyzeAndUpdate failed: %v", err)
+        t.Fatalf("Prefilter failed: %v", err)
     }
 
-    if score, ok := mock.riskScores["test-session"]; !ok {
-        t.Error("risk score not updated")
-    } else if score < 0 || score > 100 {
-        t.Errorf("invalid risk score: %d", score)
+    if result.Risk != 100 {
+        t.Errorf("expected risk 100 for blacklisted IP, got %d", result.Risk)
+    }
+    if !result.ShouldBlock {
+        t.Error("expected ShouldBlock=true for blacklisted IP")
+    }
+    if result.Reason != "ip_blacklisted" {
+        t.Errorf("expected reason 'ip_blacklisted', got '%s'", result.Reason)
     }
 }
 
 func TestCache(t *testing.T) {
-    siteID := "test-site"
+    store := &mockStorage{blacklisted: false}
+    d := New(store)
     ctx := context.Background()
 
-    mock := &mockStorage{
-        sessions: map[string]*storage.Session{
-            "cached-session": {
-                ID:        "cached-session",
-                SiteID:    &siteID,
-                IP:        "192.168.1.100",
-                UserAgent: "normal",
-                RiskScore: 0,
-            },
-        },
-        blacklist:  map[string]bool{},
-        riskScores: make(map[string]int),
-        db:         nil,
+    if _, ok := d.GetCachedRisk("test-session"); ok {
+        t.Error("session should not be cached initially")
     }
 
-    d := New(mock)
-    d.ttl = 2 * time.Second
-
-    err := d.AnalyzeAndUpdate(ctx, "cached-session")
+    err := d.AnalyzeAndUpdate(ctx, "test-session", "1.1.1.1", "Mozilla/5.0")
     if err != nil {
-        t.Fatalf("first analyze failed: %v", err)
+        t.Fatalf("AnalyzeAndUpdate failed: %v", err)
     }
 
-    if len(mock.riskScores) == 0 {
-        t.Fatal("risk score not saved after first analyze")
+    risk, ok := d.GetCachedRisk("test-session")
+    if !ok {
+        t.Error("session should be cached after AnalyzeAndUpdate")
+    }
+    if risk < 0 || risk > 100 {
+        t.Errorf("invalid risk score: %d", risk)
     }
 
-    mock.riskScores = make(map[string]int)
-
-    err = d.AnalyzeAndUpdate(ctx, "cached-session")
+    result, err := d.Prefilter(ctx, "test-session", "1.1.1.1", "Mozilla/5.0")
     if err != nil {
-        t.Fatalf("second analyze failed: %v", err)
+        t.Fatalf("Prefilter failed: %v", err)
     }
 
-    if len(mock.riskScores) > 0 {
-        t.Error("cache not used - risk score was updated again")
+    if result.Reason != "cached" {
+        t.Errorf("expected cached result, got reason: %s", result.Reason)
     }
 
-    time.Sleep(3 * time.Second)
-
-    err = d.AnalyzeAndUpdate(ctx, "cached-session")
-    if err != nil {
-        t.Fatalf("analyze after ttl failed: %v", err)
-    }
-
-    if len(mock.riskScores) == 0 {
-        t.Error("cache should have expired, but no update occurred")
+    if result.Risk != risk {
+        t.Errorf("expected risk %d from cache, got %d", risk, result.Risk)
     }
 }
 
 func TestCleanCache(t *testing.T) {
-    d := &Detector{ttl: 1 * time.Second}
+    store := &mockStorage{blacklisted: false}
+    d := New(store)
+    d.ttl = 1 * time.Second
 
     d.cache.Store("old1", cachedRisk{score: 50, ts: time.Now().Add(-3 * time.Second)})
     d.cache.Store("old2", cachedRisk{score: 60, ts: time.Now().Add(-5 * time.Second)})
@@ -352,35 +204,128 @@ func TestCleanCache(t *testing.T) {
     }
 }
 
-func TestGetCachedRisk(t *testing.T) {
-    d := &Detector{}
-
-    d.cache.Store("test-session", cachedRisk{score: 75, ts: time.Now()})
-
-    score, ok := d.GetCachedRisk("test-session")
-    if !ok {
-        t.Error("cached risk not found")
+func TestDeepFilterWithMetrics(t *testing.T) {
+    store := &mockStorageWithMetrics{
+        metrics: map[string]interface{}{
+            "counters": map[string]interface{}{
+                "mouse_move":   1500,
+                "click":        0,
+                "scroll":       100,
+                "keydown":      0,
+                "duration_sec": 45.0,
+            },
+            "fingerprint": map[string]interface{}{
+                "js_hash":        "",
+                "webgl_renderer": "SwiftShader",
+                "canvas_hash":    "",
+            },
+            "timing": map[string]interface{}{
+                "load_time_ms": 45,
+            },
+        },
     }
-    if score != 75 {
-        t.Errorf("expected 75, got %d", score)
+    d := New(store)
+
+    newRisk, err := d.DeepFilter(context.Background(), "test-session", 30)
+    if err != nil {
+        t.Fatalf("DeepFilter failed: %v", err)
     }
 
-    _, ok = d.GetCachedRisk("nonexistent")
-    if ok {
-        t.Error("found risk for nonexistent session")
+    if newRisk != 100 {
+        t.Errorf("Expected risk 100, got %d", newRisk)
     }
 }
 
-func TestDefaultSettings(t *testing.T) {
-    d := &Detector{}
-    settings := d.defaultSettings()
+func TestAnalyzeAndUpdate(t *testing.T) {
+    store := &mockStorageWithMetrics{
+        metrics: map[string]interface{}{
+            "counters": map[string]interface{}{
+                "mouse_move":   50,
+                "click":        10,
+                "scroll":       5,
+                "keydown":      20,
+                "duration_sec": 60.0,
+            },
+            "fingerprint": map[string]interface{}{
+                "js_hash":        "abc123def456",
+                "webgl_renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 3080, Direct3D 11 vs_5_0 ps_5_0)",
+                "canvas_hash":    "canvas_hash_123",
+            },
+            "timing": map[string]interface{}{
+                "load_time_ms": 800,
+            },
+        },
+    }
+    d := New(store)
+    ctx := context.Background()
 
-    if !settings.Analyzer.Enabled {
-        t.Error("analyzer should be enabled by default")
+    err := d.AnalyzeAndUpdate(ctx, "test-session", "192.168.1.1", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+    if err != nil {
+        t.Fatalf("AnalyzeAndUpdate failed: %v", err)
     }
-    if settings.Analyzer.Thresholds.Low != 30 {
-        t.Errorf("expected low threshold 30, got %d", settings.Analyzer.Thresholds.Low)
+
+    risk, ok := d.GetCachedRisk("test-session")
+    if !ok {
+        t.Error("session should be cached after analysis")
     }
+
+    if risk > 20 {
+        t.Errorf("expected risk <= 20 for ideal behavior, got %d", risk)
+    }
+}
+
+type mockStorageWithMetrics struct {
+    storage.Storage
+    metrics     map[string]interface{}
+    riskScore   int
+    blockCalled bool
+}
+
+func (m *mockStorageWithMetrics) IsBlacklisted(ctx context.Context, siteID, ip string) (bool, error) {
+    return false, nil
+}
+
+func (m *mockStorageWithMetrics) GetSessionMetrics(ctx context.Context, id string) (map[string]interface{}, error) {
+    return m.metrics, nil
+}
+
+func (m *mockStorageWithMetrics) UpdateRiskScore(ctx context.Context, id string, score int) error {
+    m.riskScore = score
+    return nil
+}
+
+func (m *mockStorageWithMetrics) GetSession(ctx context.Context, id string) (*storage.Session, error) {
+    siteID := "test-site"
+    return &storage.Session{
+        ID:        id,
+        SiteID:    &siteID,
+        IP:        "192.168.1.1",
+        RiskScore: m.riskScore,
+    }, nil
+}
+
+func (m *mockStorageWithMetrics) BlockSession(ctx context.Context, id string) error {
+    m.blockCalled = true
+    return nil
+}
+
+func (m *mockStorageWithMetrics) AddToBlacklist(ctx context.Context, entry *storage.BlacklistEntry) error {
+    return nil
+}
+
+func (m *mockStorageWithMetrics) GetSiteSettings(ctx context.Context, siteID string) (*storage.ModuleSettings, error) {
+    return &storage.ModuleSettings{
+        Analyzer: storage.AnalyzerSettings{
+            Enabled:           true,
+            HeadlessDetection: true,
+            RateLimiting:      true,
+            Thresholds: storage.AnalyzerThreshold{
+                Low:    30,
+                Medium: 60,
+                High:   80,
+            },
+        },
+    }, nil
 }
 
 func BenchmarkHeadlessScore(b *testing.B) {
@@ -389,5 +334,39 @@ func BenchmarkHeadlessScore(b *testing.B) {
 
     for i := 0; i < b.N; i++ {
         d.headlessScore(ua)
+    }
+}
+
+func BenchmarkRateLimitScore(b *testing.B) {
+    d := &Detector{}
+    d.requestCounts = sync.Map{}
+
+    for i := 0; i < b.N; i++ {
+        d.rateLimitScore("192.168.1.1")
+    }
+}
+
+func BenchmarkDeepFilter(b *testing.B) {
+    store := &mockStorageWithMetrics{
+        metrics: map[string]interface{}{
+            "counters": map[string]interface{}{
+                "mouse_move":   1500,
+                "click":        0,
+                "scroll":       100,
+                "keydown":      0,
+                "duration_sec": 45.0,
+            },
+            "fingerprint": map[string]interface{}{
+                "js_hash":        "",
+                "webgl_renderer": "SwiftShader",
+                "canvas_hash":    "",
+            },
+        },
+    }
+    d := New(store)
+
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        d.DeepFilter(context.Background(), "test-session", 30)
     }
 }

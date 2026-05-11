@@ -1,0 +1,1101 @@
+diff --git a/backend/cmd/server/main.go b/backend/cmd/server/main.go
+index 4232ae7..8505f42 100644
+--- a/backend/cmd/server/main.go
++++ b/backend/cmd/server/main.go
+@@ -121,7 +121,10 @@ func startHTTPServer(store storage.Storage) *http.Server {
+ 
+ 	fs := storage.NewLocalS3("./data/uploads")
+ 	fileHandler := handlers.NewFileHandler(store, fs)
++	behaviorHandler := handlers.NewBehaviorHandler(store)
+ 
++	mux.Handle("POST /api/sessions/{id}/behavior", authMiddleware(http.HandlerFunc(behaviorHandler.SubmitBehavior)))
++	mux.Handle("POST /api/sessions/{id}/analyze", authMiddleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
+ 	mux.Handle("POST /api/files/upload", authMiddleware(http.HandlerFunc(fileHandler.Upload)))
+ 	mux.Handle("GET /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Download)))
+ 	mux.Handle("DELETE /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Delete)))
+diff --git a/backend/detector/detector.go b/backend/detector/detector.go
+index 44b1164..c4134f2 100644
+--- a/backend/detector/detector.go
++++ b/backend/detector/detector.go
+@@ -2,7 +2,6 @@ package detector
+ 
+ import (
+     "context"
+-    "database/sql"
+     "fmt"
+     "strings"
+     "sync"
+@@ -12,9 +11,10 @@ import (
+ )
+ 
+ type Detector struct {
+-    store storage.Storage
+-    cache sync.Map
+-    ttl   time.Duration
++    store         storage.Storage
++    cache         sync.Map
++    ttl           time.Duration
++    requestCounts sync.Map
+ }
+ 
+ type cachedRisk struct {
+@@ -36,7 +36,7 @@ func New(store storage.Storage) *Detector {
+     }
+ }
+ 
+-func (d *Detector) Prefilter(ctx context.Context, sessionID string) (*PrefilterResult, error) {
++func (d *Detector) Prefilter(ctx context.Context, sessionID string, ip, userAgent string) (*PrefilterResult, error) {
+     if cached, ok := d.cache.Load(sessionID); ok {
+         if cr, ok := cached.(cachedRisk); ok && time.Since(cr.ts) < d.ttl {
+             return &PrefilterResult{
+@@ -56,9 +56,15 @@ func (d *Detector) Prefilter(ctx context.Context, sessionID string) (*PrefilterR
+         return &PrefilterResult{Risk: 0, ShouldBlock: false, NeedDeep: false, Reason: "no_session"}, nil
+     }
+ 
++    settings, err := d.store.GetSiteSettings(ctx, *session.SiteID)
++    if err != nil {
++        settings = getDefaultSettings()
++    }
++
+     risk := 0
+ 
+-    if d.isIPBlacklisted(ctx, session) {
++    blacklisted, err := d.store.IsBlacklisted(ctx, *session.SiteID, ip)
++    if err == nil && blacklisted {
+         return &PrefilterResult{
+             Risk:        100,
+             ShouldBlock: true,
+@@ -67,17 +73,12 @@ func (d *Detector) Prefilter(ctx context.Context, sessionID string) (*PrefilterR
+         }, nil
+     }
+ 
+-    settings, err := d.store.GetSiteSettings(ctx, *session.SiteID)
+-    if err != nil {
+-        settings = d.defaultSettings()
+-    }
+-
+     if settings.Analyzer.HeadlessDetection {
+-        risk += d.headlessScore(session.UserAgent)
++        risk += d.headlessScore(userAgent)
+     }
+ 
+     if settings.Analyzer.RateLimiting {
+-        risk += d.rateLimitScore(ctx, session.IP)
++        risk += d.rateLimitScore(ip)
+     }
+ 
+     if risk >= 70 {
+@@ -100,24 +101,73 @@ func (d *Detector) Prefilter(ctx context.Context, sessionID string) (*PrefilterR
+ func (d *Detector) DeepFilter(ctx context.Context, sessionID string, currentRisk int) (int, error) {
+     risk := currentRisk
+ 
+-    behaviorRisk := d.behaviorScore(ctx, sessionID)
+-    risk += behaviorRisk
++    metrics, err := d.store.GetSessionMetrics(ctx, sessionID)
++    if err != nil {
++        return risk, nil
++    }
+ 
+-    fpRisk := d.fingerprintAnomaly(ctx, sessionID, "")
+-    risk += fpRisk
++    if counters, ok := metrics["counters"].(map[string]interface{}); ok {
++        mouseMoves, _ := counters["mouse_move"].(float64)
++        clicks, _ := counters["click"].(float64)
++        scrolls, _ := counters["scroll"].(float64)
++        keystrokes, _ := counters["keydown"].(float64)
++        duration, _ := counters["duration_sec"].(float64)
+ 
+-    if risk > 100 {
+-        risk = 100
++        if mouseMoves > 1000 && duration < 30 {
++            risk += 15
++        }
++
++        if clicks == 0 && scrolls > 20 {
++            risk += 25
++        }
++
++        if keystrokes == 0 && mouseMoves > 100 {
++            risk += 20
++        }
++
++        if duration > 0 {
++            eventsPerMinute := (mouseMoves + clicks + scrolls + keystrokes) / (duration / 60)
++            if eventsPerMinute > 300 {
++                risk += 15
++            }
++            if eventsPerMinute < 5 && duration > 60 {
++                risk += 30
++            }
++        }
+     }
++
++    if fingerprint, ok := metrics["fingerprint"].(map[string]interface{}); ok {
++        if jsHash, _ := fingerprint["js_hash"].(string); jsHash == "" {
++            risk += 30
++        }
++
++        if webgl, _ := fingerprint["webgl_renderer"].(string); strings.Contains(strings.ToLower(webgl), "swiftshader") {
++            risk += 25
++        }
++
++        if canvasHash, _ := fingerprint["canvas_hash"].(string); canvasHash == "" {
++            risk += 20
++        }
++    }
++
++    if timing, ok := metrics["timing"].(map[string]interface{}); ok {
++        if loadTime, _ := timing["load_time_ms"].(float64); loadTime > 0 && loadTime < 100 {
++            risk += 20
++        }
++    }
++
+     if risk < 0 {
+         risk = 0
+     }
++    if risk > 100 {
++        risk = 100
++    }
+ 
+     return risk, nil
+ }
+ 
+-func (d *Detector) AnalyzeAndUpdate(ctx context.Context, sessionID string) error {
+-    prefilter, err := d.Prefilter(ctx, sessionID)
++func (d *Detector) AnalyzeAndUpdate(ctx context.Context, sessionID, ip, userAgent string) error {
++    prefilter, err := d.Prefilter(ctx, sessionID, ip, userAgent)
+     if err != nil {
+         return err
+     }
+@@ -137,19 +187,26 @@ func (d *Detector) AnalyzeAndUpdate(ctx context.Context, sessionID string) error
+     }
+ 
+     if err := d.store.UpdateRiskScore(ctx, sessionID, finalRisk); err != nil {
+-        return fmt.Errorf("update risk score failed: %w", err)
++        return err
+     }
+ 
+     d.cache.Store(sessionID, cachedRisk{score: finalRisk, ts: time.Now()})
+-    return nil
+-}
+ 
+-func (d *Detector) isIPBlacklisted(ctx context.Context, session *storage.Session) bool {
+-    if session.SiteID == nil {
+-        return false
++    if finalRisk >= 80 {
++        session, err := d.store.GetSession(ctx, sessionID)
++        if err == nil && session != nil && session.SiteID != nil {
++            d.store.BlockSession(ctx, sessionID)
++
++            d.store.AddToBlacklist(ctx, &storage.BlacklistEntry{
++                SiteID:    *session.SiteID,
++                IP:        session.IP,
++                Reason:    fmt.Sprintf("Auto-blocked by detector with risk score: %d", finalRisk),
++                ExpiresAt: nil,
++            })
++        }
+     }
+-    blacklisted, err := d.store.IsBlacklisted(ctx, *session.SiteID, session.IP)
+-    return err == nil && blacklisted
++
++    return nil
+ }
+ 
+ func (d *Detector) headlessScore(userAgent string) int {
+@@ -184,119 +241,36 @@ func (d *Detector) headlessScore(userAgent string) int {
+     return score
+ }
+ 
+-func (d *Detector) rateLimitScore(ctx context.Context, ip string) int {
+-    dbProvider, ok := d.store.(interface{ GetDB() *sql.DB })
+-    if !ok {
+-        return 0
+-    }
+-    db := dbProvider.GetDB()
+-    if db == nil {
+-        return 0
+-    }
++func (d *Detector) rateLimitScore(ip string) int {
++    now := time.Now()
+ 
+-    var count int
+-    query := `SELECT COUNT(*) FROM access_logs WHERE ip = $1 AND created_at > NOW() - interval '60 seconds'`
+-    err := db.QueryRowContext(ctx, query, ip).Scan(&count)
+-    if err != nil {
+-        return 0
+-    }
++    val, _ := d.requestCounts.LoadOrStore(ip, &[]time.Time{})
++    timestamps := val.(*[]time.Time)
+ 
+-    const limit = 60
+-    if count > limit*5 {
+-        return 100
+-    }
+-    if count > limit {
+-        excess := float64(count-limit) / float64(limit)
+-        add := int(excess * 25)
+-        if add > 50 {
+-            add = 50
++    clean := make([]time.Time, 0)
++    for _, ts := range *timestamps {
++        if now.Sub(ts) < time.Minute {
++            clean = append(clean, ts)
+         }
+-        return add
+     }
+-    return 0
+-}
+ 
+-func (d *Detector) behaviorScore(ctx context.Context, sessionID string) int {
+-    dbProvider, ok := d.store.(interface{ GetDB() *sql.DB })
+-    if !ok {
+-        return 0
+-    }
+-    db := dbProvider.GetDB()
+-    if db == nil {
+-        return 0
+-    }
++    clean = append(clean, now)
++    *timestamps = clean
+ 
+-    var eventCount int
+-    var avgGap float64
+-
+-    query := `
+-        SELECT 
+-            COUNT(*) as event_count,
+-            EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / NULLIF(COUNT(*) - 1, 0) as avg_gap
+-        FROM behavior_events 
+-        WHERE session_id = $1 AND recorded_at > NOW() - interval '5 minutes'
+-    `
+-    err := db.QueryRowContext(ctx, query, sessionID).Scan(&eventCount, &avgGap)
+-    if err != nil {
+-        return 0
+-    }
++    count := len(clean)
+ 
+-    if eventCount == 0 {
+-        return 50
+-    }
+-
+-    risk := 0
+-    if avgGap > 0 && avgGap < 0.5 && eventCount > 10 {
+-        risk += 40
+-    }
+-    if eventCount > 500 {
+-        risk += 30
+-    }
+-
+-    var hasMouse, hasClick bool
+-    mouseQuery := `SELECT EXISTS(SELECT 1 FROM behavior_events WHERE session_id = $1 AND event_type IN ('mousemove', 'mousedown', 'mouseup'))`
+-    clickQuery := `SELECT EXISTS(SELECT 1 FROM behavior_events WHERE session_id = $1 AND event_type = 'click')`
+-    db.QueryRowContext(ctx, mouseQuery, sessionID).Scan(&hasMouse)
+-    db.QueryRowContext(ctx, clickQuery, sessionID).Scan(&hasClick)
+-
+-    if hasClick && !hasMouse {
+-        risk += 30
+-    }
+-
+-    if risk > 100 {
+-        risk = 100
++    if count > 100 {
++        return 100
+     }
+-    return risk
+-}
+-
+-func (d *Detector) fingerprintAnomaly(ctx context.Context, sessionID, currentFP string) int {
+-    lastFP, err := d.store.GetFingerprint(ctx, sessionID)
+-    if err != nil || lastFP == "" {
+-        return 0
++    if count > 60 {
++        return 50
+     }
+-    if currentFP != "" && lastFP != currentFP {
++    if count > 30 {
+         return 20
+     }
+     return 0
+ }
+ 
+-func (d *Detector) defaultSettings() *storage.ModuleSettings {
+-    return &storage.ModuleSettings{
+-        Analyzer: storage.AnalyzerSettings{
+-            Enabled:           true,
+-            RateLimiting:      true,
+-            PatternAnalysis:   true,
+-            HeadlessDetection: true,
+-            Thresholds: storage.AnalyzerThreshold{
+-                Low:    30,
+-                Medium: 60,
+-                High:   80,
+-            },
+-            Weights: storage.DefaultWeights(),
+-        },
+-    }
+-}
+-
+ func (d *Detector) CleanCache() {
+     d.cache.Range(func(key, value interface{}) bool {
+         if cr, ok := value.(cachedRisk); ok {
+@@ -315,4 +289,21 @@ func (d *Detector) GetCachedRisk(sessionID string) (int, bool) {
+         }
+     }
+     return 0, false
++}
++
++func getDefaultSettings() *storage.ModuleSettings {
++    return &storage.ModuleSettings{
++        Analyzer: storage.AnalyzerSettings{
++            Enabled:           true,
++            HeadlessDetection: true,
++            RateLimiting:      true,
++            PatternAnalysis:   true,
++            Thresholds: storage.AnalyzerThreshold{
++                Low:    30,
++                Medium: 60,
++                High:   80,
++            },
++            Weights: storage.DefaultWeights(),
++        },
++    }
+ }
+\ No newline at end of file
+diff --git a/backend/detector/detector_test.go b/backend/detector/detector_test.go
+index 1032bdd..baa392a 100644
+--- a/backend/detector/detector_test.go
++++ b/backend/detector/detector_test.go
+@@ -1,8 +1,9 @@
++// backend/detector/detector_test.go
+ package detector
+ 
+ import (
+     "context"
+-    "database/sql"
++    "sync"
+     "testing"
+     "time"
+ 
+@@ -11,60 +12,54 @@ import (
+ 
+ type mockStorage struct {
+     storage.Storage
+-    sessions       map[string]*storage.Session
+-    blacklist      map[string]bool
+-    behaviorEvents map[string][]storage.BehaviorEvent
+-    riskScores     map[string]int
+-    db             *sql.DB
++    blacklisted bool
++}
++
++func (m *mockStorage) IsBlacklisted(ctx context.Context, siteID, ip string) (bool, error) {
++    return m.blacklisted, nil
++}
++
++func (m *mockStorage) GetSessionMetrics(ctx context.Context, id string) (map[string]interface{}, error) {
++    return make(map[string]interface{}), nil
++}
++
++func (m *mockStorage) UpdateRiskScore(ctx context.Context, id string, score int) error {
++    return nil
+ }
+ 
+ func (m *mockStorage) GetSession(ctx context.Context, id string) (*storage.Session, error) {
+-    if sess, ok := m.sessions[id]; ok {
+-        return sess, nil
+-    }
+-    return nil, storage.ErrSessionNotFound
++    siteID := "test-site"
++    return &storage.Session{
++        ID:        id,
++        SiteID:    &siteID,
++        IP:        "192.168.1.1",
++        RiskScore: 0,
++    }, nil
+ }
+ 
+-func (m *mockStorage) IsBlacklisted(ctx context.Context, siteID, ip string) (bool, error) {
+-    return m.blacklist[ip], nil
++func (m *mockStorage) BlockSession(ctx context.Context, id string) error {
++    return nil
++}
++
++func (m *mockStorage) AddToBlacklist(ctx context.Context, entry *storage.BlacklistEntry) error {
++    return nil
+ }
+ 
+ func (m *mockStorage) GetSiteSettings(ctx context.Context, siteID string) (*storage.ModuleSettings, error) {
+     return &storage.ModuleSettings{
+         Analyzer: storage.AnalyzerSettings{
+             Enabled:           true,
+-            RateLimiting:      true,
+-            PatternAnalysis:   true,
+             HeadlessDetection: true,
++            RateLimiting:      true,
+             Thresholds: storage.AnalyzerThreshold{
+                 Low:    30,
+                 Medium: 60,
+                 High:   80,
+             },
+-            Weights: storage.DefaultWeights(),
+         },
+     }, nil
+ }
+ 
+-func (m *mockStorage) UpdateRiskScore(ctx context.Context, id string, score int) error {
+-    if m.riskScores == nil {
+-        m.riskScores = make(map[string]int)
+-    }
+-    m.riskScores[id] = score
+-    return nil
+-}
+-
+-func (m *mockStorage) GetFingerprint(ctx context.Context, id string) (string, error) {
+-    if sess, ok := m.sessions[id]; ok {
+-        return sess.UserAgent, nil
+-    }
+-    return "", nil
+-}
+-
+-func (m *mockStorage) GetDB() *sql.DB {
+-    return m.db
+-}
+-
+ func TestHeadlessScore(t *testing.T) {
+     d := &Detector{}
+ 
+@@ -95,245 +90,102 @@ func TestHeadlessScore(t *testing.T) {
+     }
+ }
+ 
+-func TestIsIPBlacklisted(t *testing.T) {
+-    siteID := "test-site"
+-    ctx := context.Background()
+-
+-    tests := []struct {
+-        name      string
+-        ip        string
+-        blacklist map[string]bool
+-        expected  bool
+-    }{
+-        {"blacklisted ip", "1.2.3.4", map[string]bool{"1.2.3.4": true}, true},
+-        {"not blacklisted", "5.6.7.8", map[string]bool{}, false},
+-    }
+-
+-    for _, tt := range tests {
+-        t.Run(tt.name, func(t *testing.T) {
+-            mock := &mockStorage{
+-                sessions: map[string]*storage.Session{
+-                    "sess1": {ID: "sess1", SiteID: &siteID, IP: tt.ip},
+-                },
+-                blacklist: tt.blacklist,
+-            }
+-            d := New(mock)
+-            sess, _ := mock.GetSession(ctx, "sess1")
+-            result := d.isIPBlacklisted(ctx, sess)
+-            if result != tt.expected {
+-                t.Errorf("expected %v, got %v", tt.expected, result)
+-            }
+-        })
+-    }
+-}
+-
+ func TestRateLimitScore(t *testing.T) {
+-    mock := &mockStorage{db: nil}
+-    d := &Detector{store: mock}
+-    ctx := context.Background()
+-
+-    score := d.rateLimitScore(ctx, "192.168.1.1")
+-    if score != 0 {
+-        t.Errorf("expected 0 without DB, got %d", score)
+-    }
+-}
+-
+-func TestBehaviorScore(t *testing.T) {
+-    mock := &mockStorage{db: nil}
+-    d := &Detector{store: mock}
+-    ctx := context.Background()
++    d := &Detector{}
++    d.requestCounts = sync.Map{}
+ 
+-    score := d.behaviorScore(ctx, "nonexistent-session")
+-    if score != 0 {
+-        t.Errorf("expected 0 without DB, got %d", score)
++    for i := 0; i < 30; i++ {
++        score := d.rateLimitScore("192.168.1.1")
++        if i < 30 && score != 0 {
++            t.Errorf("expected 0 for request %d, got %d", i, score)
++        }
+     }
+-}
+-
+-func TestFingerprintAnomaly(t *testing.T) {
+-    siteID := "test-site"
+-    ctx := context.Background()
+ 
+-    tests := []struct {
+-        name         string
+-        sessionFP    string
+-        currentFP    string
+-        expectedRisk int
+-    }{
+-        {"no fingerprint", "", "", 0},
+-        {"same fingerprint", "fp123", "fp123", 0},
+-        {"different fingerprint", "fp123", "fp456", 20},
++    for i := 0; i < 40; i++ {
++        d.rateLimitScore("192.168.1.1")
+     }
+-
+-    for _, tt := range tests {
+-        t.Run(tt.name, func(t *testing.T) {
+-            mock := &mockStorage{
+-                sessions: map[string]*storage.Session{
+-                    "sess1": {ID: "sess1", SiteID: &siteID, UserAgent: tt.sessionFP},
+-                },
+-            }
+-            d := New(mock)
+-            risk := d.fingerprintAnomaly(ctx, "sess1", tt.currentFP)
+-            if risk != tt.expectedRisk {
+-                t.Errorf("expected %d, got %d", tt.expectedRisk, risk)
+-            }
+-        })
++    score := d.rateLimitScore("192.168.1.1")
++    if score < 20 {
++        t.Errorf("expected score >=20 after many requests, got %d", score)
+     }
+ }
+ 
+ func TestPrefilter(t *testing.T) {
+-    siteID := "test-site"
++    store := &mockStorage{blacklisted: false}
++    d := New(store)
+     ctx := context.Background()
+ 
+-    tests := []struct {
+-        name          string
+-        session       *storage.Session
+-        blacklist     map[string]bool
+-        expectedRisk  int
+-        expectedBlock bool
+-        expectedDeep  bool
+-    }{
+-        {
+-            name: "blacklisted ip",
+-            session: &storage.Session{ID: "sess1", SiteID: &siteID, IP: "1.2.3.4", UserAgent: "normal"},
+-            blacklist:     map[string]bool{"1.2.3.4": true},
+-            expectedRisk:  100,
+-            expectedBlock: true,
+-            expectedDeep:  false,
+-        },
+-        {
+-            name: "headless browser",
+-            session: &storage.Session{ID: "sess2", SiteID: &siteID, IP: "5.6.7.8", UserAgent: "HeadlessChrome/120.0.0.0"},
+-            blacklist:     map[string]bool{},
+-            expectedRisk:  25,
+-            expectedBlock: false,
+-            expectedDeep:  true,
+-        },
+-        {
+-            name: "normal user",
+-            session: &storage.Session{ID: "sess3", SiteID: &siteID, IP: "9.10.11.12", UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"},
+-            blacklist:     map[string]bool{},
+-            expectedRisk:  0,
+-            expectedBlock: false,
+-            expectedDeep:  true,
+-        },
++    result, err := d.Prefilter(ctx, "test-session", "192.168.1.1", "Mozilla/5.0")
++    if err != nil {
++        t.Fatalf("Prefilter failed: %v", err)
+     }
+ 
+-    for _, tt := range tests {
+-        t.Run(tt.name, func(t *testing.T) {
+-            mock := &mockStorage{
+-                sessions:  map[string]*storage.Session{tt.session.ID: tt.session},
+-                blacklist: tt.blacklist,
+-                db:        nil,
+-            }
+-            d := New(mock)
+-
+-            result, err := d.Prefilter(ctx, tt.session.ID)
+-            if err != nil {
+-                t.Fatalf("Prefilter failed: %v", err)
+-            }
+-
+-            if result.Risk < tt.expectedRisk {
+-                t.Errorf("risk %d < expected %d", result.Risk, tt.expectedRisk)
+-            }
+-            if result.ShouldBlock != tt.expectedBlock {
+-                t.Errorf("shouldBlock %v != expected %v", result.ShouldBlock, tt.expectedBlock)
+-            }
+-            if result.NeedDeep != tt.expectedDeep {
+-                t.Errorf("needDeep %v != expected %v", result.NeedDeep, tt.expectedDeep)
+-            }
+-        })
++    if result.Risk < 0 || result.Risk > 100 {
++        t.Errorf("invalid risk score: %d", result.Risk)
+     }
+ }
+ 
+-func TestAnalyzeAndUpdate(t *testing.T) {
+-    siteID := "test-site"
++func TestPrefilterWithBlacklist(t *testing.T) {
++    store := &mockStorage{blacklisted: true}
++    d := New(store)
+     ctx := context.Background()
+ 
+-    mock := &mockStorage{
+-        sessions: map[string]*storage.Session{
+-            "test-session": {
+-                ID:        "test-session",
+-                SiteID:    &siteID,
+-                IP:        "192.168.1.100",
+-                UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
+-                RiskScore: 0,
+-            },
+-        },
+-        blacklist:  map[string]bool{},
+-        riskScores: make(map[string]int),
+-        db:         nil,
+-    }
+-
+-    d := New(mock)
+-
+-    err := d.AnalyzeAndUpdate(ctx, "test-session")
++    result, err := d.Prefilter(ctx, "test-session", "192.168.1.100", "Mozilla/5.0")
+     if err != nil {
+-        t.Errorf("AnalyzeAndUpdate failed: %v", err)
++        t.Fatalf("Prefilter failed: %v", err)
+     }
+ 
+-    if score, ok := mock.riskScores["test-session"]; !ok {
+-        t.Error("risk score not updated")
+-    } else if score < 0 || score > 100 {
+-        t.Errorf("invalid risk score: %d", score)
++    if result.Risk != 100 {
++        t.Errorf("expected risk 100 for blacklisted IP, got %d", result.Risk)
++    }
++    if !result.ShouldBlock {
++        t.Error("expected ShouldBlock=true for blacklisted IP")
++    }
++    if result.Reason != "ip_blacklisted" {
++        t.Errorf("expected reason 'ip_blacklisted', got '%s'", result.Reason)
+     }
+ }
+ 
+ func TestCache(t *testing.T) {
+-    siteID := "test-site"
++    store := &mockStorage{blacklisted: false}
++    d := New(store)
+     ctx := context.Background()
+ 
+-    mock := &mockStorage{
+-        sessions: map[string]*storage.Session{
+-            "cached-session": {
+-                ID:        "cached-session",
+-                SiteID:    &siteID,
+-                IP:        "192.168.1.100",
+-                UserAgent: "normal",
+-                RiskScore: 0,
+-            },
+-        },
+-        blacklist:  map[string]bool{},
+-        riskScores: make(map[string]int),
+-        db:         nil,
++    if _, ok := d.GetCachedRisk("test-session"); ok {
++        t.Error("session should not be cached initially")
+     }
+ 
+-    d := New(mock)
+-    d.ttl = 2 * time.Second
+-
+-    err := d.AnalyzeAndUpdate(ctx, "cached-session")
++    err := d.AnalyzeAndUpdate(ctx, "test-session", "1.1.1.1", "Mozilla/5.0")
+     if err != nil {
+-        t.Fatalf("first analyze failed: %v", err)
++        t.Fatalf("AnalyzeAndUpdate failed: %v", err)
+     }
+ 
+-    if len(mock.riskScores) == 0 {
+-        t.Fatal("risk score not saved after first analyze")
++    risk, ok := d.GetCachedRisk("test-session")
++    if !ok {
++        t.Error("session should be cached after AnalyzeAndUpdate")
+     }
+-
+-    mock.riskScores = make(map[string]int)
+-
+-    err = d.AnalyzeAndUpdate(ctx, "cached-session")
+-    if err != nil {
+-        t.Fatalf("second analyze failed: %v", err)
++    if risk < 0 || risk > 100 {
++        t.Errorf("invalid risk score: %d", risk)
+     }
+ 
+-    if len(mock.riskScores) > 0 {
+-        t.Error("cache not used - risk score was updated again")
++    result, err := d.Prefilter(ctx, "test-session", "1.1.1.1", "Mozilla/5.0")
++    if err != nil {
++        t.Fatalf("Prefilter failed: %v", err)
+     }
+ 
+-    time.Sleep(3 * time.Second)
+-
+-    err = d.AnalyzeAndUpdate(ctx, "cached-session")
+-    if err != nil {
+-        t.Fatalf("analyze after ttl failed: %v", err)
++    if result.Reason != "cached" {
++        t.Errorf("expected cached result, got reason: %s", result.Reason)
+     }
+ 
+-    if len(mock.riskScores) == 0 {
+-        t.Error("cache should have expired, but no update occurred")
++    if result.Risk != risk {
++        t.Errorf("expected risk %d from cache, got %d", risk, result.Risk)
+     }
+ }
+ 
+ func TestCleanCache(t *testing.T) {
+-    d := &Detector{ttl: 1 * time.Second}
++    store := &mockStorage{blacklisted: false}
++    d := New(store)
++    d.ttl = 1 * time.Second
+ 
+     d.cache.Store("old1", cachedRisk{score: 50, ts: time.Now().Add(-3 * time.Second)})
+     d.cache.Store("old2", cachedRisk{score: 60, ts: time.Now().Add(-5 * time.Second)})
+@@ -352,35 +204,128 @@ func TestCleanCache(t *testing.T) {
+     }
+ }
+ 
+-func TestGetCachedRisk(t *testing.T) {
+-    d := &Detector{}
+-
+-    d.cache.Store("test-session", cachedRisk{score: 75, ts: time.Now()})
+-
+-    score, ok := d.GetCachedRisk("test-session")
+-    if !ok {
+-        t.Error("cached risk not found")
++func TestDeepFilterWithMetrics(t *testing.T) {
++    store := &mockStorageWithMetrics{
++        metrics: map[string]interface{}{
++            "counters": map[string]interface{}{
++                "mouse_move":   1500,
++                "click":        0,
++                "scroll":       100,
++                "keydown":      0,
++                "duration_sec": 45.0,
++            },
++            "fingerprint": map[string]interface{}{
++                "js_hash":        "",
++                "webgl_renderer": "SwiftShader",
++                "canvas_hash":    "",
++            },
++            "timing": map[string]interface{}{
++                "load_time_ms": 45,
++            },
++        },
+     }
+-    if score != 75 {
+-        t.Errorf("expected 75, got %d", score)
++    d := New(store)
++
++    newRisk, err := d.DeepFilter(context.Background(), "test-session", 30)
++    if err != nil {
++        t.Fatalf("DeepFilter failed: %v", err)
+     }
+ 
+-    _, ok = d.GetCachedRisk("nonexistent")
+-    if ok {
+-        t.Error("found risk for nonexistent session")
++    if newRisk != 100 {
++        t.Errorf("Expected risk 100, got %d", newRisk)
+     }
+ }
+ 
+-func TestDefaultSettings(t *testing.T) {
+-    d := &Detector{}
+-    settings := d.defaultSettings()
++func TestAnalyzeAndUpdate(t *testing.T) {
++    store := &mockStorageWithMetrics{
++        metrics: map[string]interface{}{
++            "counters": map[string]interface{}{
++                "mouse_move":   50,
++                "click":        10,
++                "scroll":       5,
++                "keydown":      20,
++                "duration_sec": 60.0,
++            },
++            "fingerprint": map[string]interface{}{
++                "js_hash":        "abc123def456",
++                "webgl_renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 3080, Direct3D 11 vs_5_0 ps_5_0)",
++                "canvas_hash":    "canvas_hash_123",
++            },
++            "timing": map[string]interface{}{
++                "load_time_ms": 800,
++            },
++        },
++    }
++    d := New(store)
++    ctx := context.Background()
+ 
+-    if !settings.Analyzer.Enabled {
+-        t.Error("analyzer should be enabled by default")
++    err := d.AnalyzeAndUpdate(ctx, "test-session", "192.168.1.1", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
++    if err != nil {
++        t.Fatalf("AnalyzeAndUpdate failed: %v", err)
+     }
+-    if settings.Analyzer.Thresholds.Low != 30 {
+-        t.Errorf("expected low threshold 30, got %d", settings.Analyzer.Thresholds.Low)
++
++    risk, ok := d.GetCachedRisk("test-session")
++    if !ok {
++        t.Error("session should be cached after analysis")
+     }
++
++    if risk > 20 {
++        t.Errorf("expected risk <= 20 for ideal behavior, got %d", risk)
++    }
++}
++
++type mockStorageWithMetrics struct {
++    storage.Storage
++    metrics     map[string]interface{}
++    riskScore   int
++    blockCalled bool
++}
++
++func (m *mockStorageWithMetrics) IsBlacklisted(ctx context.Context, siteID, ip string) (bool, error) {
++    return false, nil
++}
++
++func (m *mockStorageWithMetrics) GetSessionMetrics(ctx context.Context, id string) (map[string]interface{}, error) {
++    return m.metrics, nil
++}
++
++func (m *mockStorageWithMetrics) UpdateRiskScore(ctx context.Context, id string, score int) error {
++    m.riskScore = score
++    return nil
++}
++
++func (m *mockStorageWithMetrics) GetSession(ctx context.Context, id string) (*storage.Session, error) {
++    siteID := "test-site"
++    return &storage.Session{
++        ID:        id,
++        SiteID:    &siteID,
++        IP:        "192.168.1.1",
++        RiskScore: m.riskScore,
++    }, nil
++}
++
++func (m *mockStorageWithMetrics) BlockSession(ctx context.Context, id string) error {
++    m.blockCalled = true
++    return nil
++}
++
++func (m *mockStorageWithMetrics) AddToBlacklist(ctx context.Context, entry *storage.BlacklistEntry) error {
++    return nil
++}
++
++func (m *mockStorageWithMetrics) GetSiteSettings(ctx context.Context, siteID string) (*storage.ModuleSettings, error) {
++    return &storage.ModuleSettings{
++        Analyzer: storage.AnalyzerSettings{
++            Enabled:           true,
++            HeadlessDetection: true,
++            RateLimiting:      true,
++            Thresholds: storage.AnalyzerThreshold{
++                Low:    30,
++                Medium: 60,
++                High:   80,
++            },
++        },
++    }, nil
+ }
+ 
+ func BenchmarkHeadlessScore(b *testing.B) {
+@@ -390,4 +335,38 @@ func BenchmarkHeadlessScore(b *testing.B) {
+     for i := 0; i < b.N; i++ {
+         d.headlessScore(ua)
+     }
++}
++
++func BenchmarkRateLimitScore(b *testing.B) {
++    d := &Detector{}
++    d.requestCounts = sync.Map{}
++
++    for i := 0; i < b.N; i++ {
++        d.rateLimitScore("192.168.1.1")
++    }
++}
++
++func BenchmarkDeepFilter(b *testing.B) {
++    store := &mockStorageWithMetrics{
++        metrics: map[string]interface{}{
++            "counters": map[string]interface{}{
++                "mouse_move":   1500,
++                "click":        0,
++                "scroll":       100,
++                "keydown":      0,
++                "duration_sec": 45.0,
++            },
++            "fingerprint": map[string]interface{}{
++                "js_hash":        "",
++                "webgl_renderer": "SwiftShader",
++                "canvas_hash":    "",
++            },
++        },
++    }
++    d := New(store)
++
++    b.ResetTimer()
++    for i := 0; i < b.N; i++ {
++        d.DeepFilter(context.Background(), "test-session", 30)
++    }
+ }
+\ No newline at end of file
+diff --git a/backend/migrations/004_add_bot_detection.down.sql b/backend/migrations/004_add_bot_detection.down.sql
+index 21cd3e6..f90dadb 100644
+--- a/backend/migrations/004_add_bot_detection.down.sql
++++ b/backend/migrations/004_add_bot_detection.down.sql
+@@ -1,6 +1,3 @@
+-DROP INDEX IF EXISTS idx_sessions_fingerprint;
+-DROP INDEX IF EXISTS idx_be_type;
+-DROP INDEX IF EXISTS idx_be_recorded;
+-DROP INDEX IF EXISTS idx_be_session;
++DROP INDEX IF EXISTS idx_sessions_metrics;
++ALTER TABLE sessions DROP COLUMN IF EXISTS metrics;
+ ALTER TABLE sessions DROP COLUMN IF EXISTS fingerprint;
+-DROP TABLE IF EXISTS behavior_events;
+diff --git a/backend/migrations/004_add_bot_detection.up.sql b/backend/migrations/004_add_bot_detection.up.sql
+index 75c5515..3f781be 100644
+--- a/backend/migrations/004_add_bot_detection.up.sql
++++ b/backend/migrations/004_add_bot_detection.up.sql
+@@ -1,17 +1,6 @@
+-CREATE TABLE IF NOT EXISTS behavior_events (
+-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+-    event_type VARCHAR(50) NOT NULL,
+-    event_data JSONB,
+-    recorded_at TIMESTAMP DEFAULT NOW()
+-);
+-
+ ALTER TABLE sessions ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(255);
++ALTER TABLE sessions ADD COLUMN IF NOT EXISTS metrics JSONB DEFAULT '{}';
+ 
+-CREATE INDEX IF NOT EXISTS idx_be_session ON behavior_events(session_id);
+-CREATE INDEX IF NOT EXISTS idx_be_recorded ON behavior_events(recorded_at);
+-CREATE INDEX IF NOT EXISTS idx_be_type ON behavior_events(event_type);
+-CREATE INDEX IF NOT EXISTS idx_sessions_fingerprint ON sessions(fingerprint);
++CREATE INDEX IF NOT EXISTS idx_sessions_metrics ON sessions USING gin(metrics);
+ 
+-COMMENT ON TABLE behavior_events IS 'Поведенческие события для детекции ботов';
+-COMMENT ON COLUMN sessions.fingerprint IS 'Browser fingerprint для отслеживания подмены';
++COMMENT ON COLUMN sessions.metrics IS 'Aggregated behavior metrics: mouse_moves, clicks, scrolls, keystrokes, duration, fingerprint, etc.';
+\ No newline at end of file
+diff --git a/backend/storage/behavior.go b/backend/storage/behavior.go
+index 915e1b8..914d849 100644
+--- a/backend/storage/behavior.go
++++ b/backend/storage/behavior.go
+@@ -1,10 +1,12 @@
++// backend/storage/behavior.go
+ package storage
+ 
+ import (
++	"fmt"
++	"errors"
+     "context"
+     "database/sql"
+     "encoding/json"
+-    "time"
+ )
+ 
+ func (s *storage) UpdateFingerprint(ctx context.Context, id string, fingerprint string) error {
+@@ -29,25 +31,57 @@ func (s *storage) GetFingerprint(ctx context.Context, id string) (string, error)
+     return "", nil
+ }
+ 
+-func (s *storage) RecordBehaviorEvent(ctx context.Context, event *BehaviorEvent) error {
+-    if event.ID == "" {
+-        event.ID = generateID()
++func (s *storage) UpdateSessionMetrics(ctx context.Context, sessionID string, metrics map[string]interface{}) error {
++    if len(metrics) == 0 {
++        return nil
+     }
+-    if event.RecordedAt.IsZero() {
+-        event.RecordedAt = time.Now()
+-    }
+-
+-    eventData, err := json.Marshal(event.EventData)
++    
++    metricsJSON, err := json.Marshal(metrics)
+     if err != nil {
+-        return err
++        return fmt.Errorf("failed to marshal metrics: %w", err)
+     }
+-
++    
+     query := `
+-        INSERT INTO behavior_events (id, session_id, event_type, event_data, recorded_at)
+-        VALUES ($1, $2, $3, $4, $5)
++        UPDATE sessions 
++        SET metrics = COALESCE(metrics, '{}'::jsonb) || $1::jsonb,
++            updated_at = NOW()
++        WHERE id = $2
+     `
+-    _, err = s.db.ExecContext(ctx, query,
+-        event.ID, event.SessionID, event.EventType, eventData, event.RecordedAt,
+-    )
+-    return err
+-}
+\ No newline at end of file
++    
++    result, err := s.db.ExecContext(ctx, query, string(metricsJSON), sessionID)
++    if err != nil {
++        return fmt.Errorf("failed to update session metrics: %w", err)
++    }
++    
++    rowsAffected, _ := result.RowsAffected()
++    if rowsAffected == 0 {
++        return ErrSessionNotFound
++    }
++    
++    return nil
++}
++
++func (s *storage) GetSessionMetrics(ctx context.Context, sessionID string) (map[string]interface{}, error) {
++    var metricsJSON []byte
++    query := `SELECT COALESCE(metrics, '{}'::jsonb) FROM sessions WHERE id = $1`
++    
++    err := s.db.QueryRowContext(ctx, query, sessionID).Scan(&metricsJSON)
++    if err != nil {
++        if errors.Is(err, sql.ErrNoRows) {
++            return nil, ErrSessionNotFound
++        }
++        return nil, fmt.Errorf("failed to get session metrics: %w", err)
++    }
++    
++    var metrics map[string]interface{}
++    if len(metricsJSON) > 0 {
++        if err := json.Unmarshal(metricsJSON, &metrics); err != nil {
++            return make(map[string]interface{}), nil
++        }
++    }
++    
++    if metrics == nil {
++        return make(map[string]interface{}), nil
++    }
++    return metrics, nil
++}
+diff --git a/backend/storage/storage.go b/backend/storage/storage.go
+index a07018b..ce0b905 100644
+--- a/backend/storage/storage.go
++++ b/backend/storage/storage.go
+@@ -243,7 +243,8 @@ type SessionStorage interface {
+ 
+ 	UpdateFingerprint(ctx context.Context, id string, fingerprint string) error
+     GetFingerprint(ctx context.Context, id string) (string, error)
+-    RecordBehaviorEvent(ctx context.Context, event *BehaviorEvent) error
++	UpdateSessionMetrics(ctx context.Context, sessionID string, metrics map[string]interface{}) error
++    GetSessionMetrics(ctx context.Context, sessionID string) (map[string]interface{}, error)
+ }
+ 
+ type SiteStorage interface {
