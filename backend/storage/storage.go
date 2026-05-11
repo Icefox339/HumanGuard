@@ -75,13 +75,23 @@ type CollectorSettings struct {
 	FingerprintEnabled bool `json:"fingerprint_enabled"`
 }
 
-type AnalyzerSettings struct {
-	Enabled           bool              `json:"enabled"`
-	RateLimiting      bool              `json:"rate_limiting"`
-	PatternAnalysis   bool              `json:"pattern_analysis"`
-	HeadlessDetection bool              `json:"headless_detection"`
-	Thresholds        AnalyzerThreshold `json:"thresholds"`
+type WeightsSettings struct {
+    IPReputation      float64 `json:"ip_reputation"`
+    Headless          float64 `json:"headless"`
+    RateLimit         float64 `json:"rate_limit"`
+    BehaviorAnomaly   float64 `json:"behavior_anomaly"`
+    FingerprintChange float64 `json:"fingerprint_change"`
 }
+
+type AnalyzerSettings struct {
+    Enabled           bool              `json:"enabled"`
+    RateLimiting      bool              `json:"rate_limiting"`
+    PatternAnalysis   bool              `json:"pattern_analysis"`
+    HeadlessDetection bool              `json:"headless_detection"`
+    Thresholds        AnalyzerThreshold `json:"thresholds"`
+    Weights           WeightsSettings   `json:"weights,omitempty"`
+}
+
 
 type AnalyzerThreshold struct {
 	Low    int `json:"low"`
@@ -254,4 +264,14 @@ func isUniqueViolation(err error) bool {
 		return pqErr.Code == "23505"
 	}
 	return false
+}
+
+func DefaultWeights() WeightsSettings {
+    return WeightsSettings{
+        IPReputation:      35.0,
+        Headless:          25.0,
+        RateLimit:         20.0,
+        BehaviorAnomaly:   15.0,
+        FingerprintChange: 5.0,
+    }
 }
