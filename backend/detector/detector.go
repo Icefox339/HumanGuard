@@ -2,7 +2,6 @@ package detector
 
 import (
     "context"
-    "database/sql"
     "fmt"
     "strings"
     "sync"
@@ -12,9 +11,10 @@ import (
 )
 
 type Detector struct {
-    store storage.Storage
-    cache sync.Map
-    ttl   time.Duration
+    store         storage.Storage
+    cache         sync.Map
+    ttl           time.Duration
+    requestCounts sync.Map
 }
 
 type cachedRisk struct {
@@ -36,7 +36,7 @@ func New(store storage.Storage) *Detector {
     }
 }
 
-func (d *Detector) Prefilter(ctx context.Context, sessionID string) (*PrefilterResult, error) {
+func (d *Detector) Prefilter(ctx context.Context, sessionID string, ip, userAgent string) (*PrefilterResult, error) {
     if cached, ok := d.cache.Load(sessionID); ok {
         if cr, ok := cached.(cachedRisk); ok && time.Since(cr.ts) < d.ttl {
             return &PrefilterResult{
@@ -56,9 +56,15 @@ func (d *Detector) Prefilter(ctx context.Context, sessionID string) (*PrefilterR
         return &PrefilterResult{Risk: 0, ShouldBlock: false, NeedDeep: false, Reason: "no_session"}, nil
     }
 
+    settings, err := d.store.GetSiteSettings(ctx, *session.SiteID)
+    if err != nil {
+        settings = getDefaultSettings()
+    }
+
     risk := 0
 
-    if d.isIPBlacklisted(ctx, session) {
+    blacklisted, err := d.store.IsBlacklisted(ctx, *session.SiteID, ip)
+    if err == nil && blacklisted {
         return &PrefilterResult{
             Risk:        100,
             ShouldBlock: true,
@@ -67,17 +73,12 @@ func (d *Detector) Prefilter(ctx context.Context, sessionID string) (*PrefilterR
         }, nil
     }
 
-    settings, err := d.store.GetSiteSettings(ctx, *session.SiteID)
-    if err != nil {
-        settings = d.defaultSettings()
-    }
-
     if settings.Analyzer.HeadlessDetection {
-        risk += d.headlessScore(session.UserAgent)
+        risk += d.headlessScore(userAgent)
     }
 
     if settings.Analyzer.RateLimiting {
-        risk += d.rateLimitScore(ctx, session.IP)
+        risk += d.rateLimitScore(ip)
     }
 
     if risk >= 70 {
@@ -100,24 +101,73 @@ func (d *Detector) Prefilter(ctx context.Context, sessionID string) (*PrefilterR
 func (d *Detector) DeepFilter(ctx context.Context, sessionID string, currentRisk int) (int, error) {
     risk := currentRisk
 
-    behaviorRisk := d.behaviorScore(ctx, sessionID)
-    risk += behaviorRisk
-
-    fpRisk := d.fingerprintAnomaly(ctx, sessionID, "")
-    risk += fpRisk
-
-    if risk > 100 {
-        risk = 100
+    metrics, err := d.store.GetSessionMetrics(ctx, sessionID)
+    if err != nil {
+        return risk, nil
     }
+
+    if counters, ok := metrics["counters"].(map[string]interface{}); ok {
+        mouseMoves, _ := counters["mouse_move"].(float64)
+        clicks, _ := counters["click"].(float64)
+        scrolls, _ := counters["scroll"].(float64)
+        keystrokes, _ := counters["keydown"].(float64)
+        duration, _ := counters["duration_sec"].(float64)
+
+        if mouseMoves > 1000 && duration < 30 {
+            risk += 15
+        }
+
+        if clicks == 0 && scrolls > 20 {
+            risk += 25
+        }
+
+        if keystrokes == 0 && mouseMoves > 100 {
+            risk += 20
+        }
+
+        if duration > 0 {
+            eventsPerMinute := (mouseMoves + clicks + scrolls + keystrokes) / (duration / 60)
+            if eventsPerMinute > 300 {
+                risk += 15
+            }
+            if eventsPerMinute < 5 && duration > 60 {
+                risk += 30
+            }
+        }
+    }
+
+    if fingerprint, ok := metrics["fingerprint"].(map[string]interface{}); ok {
+        if jsHash, _ := fingerprint["js_hash"].(string); jsHash == "" {
+            risk += 30
+        }
+
+        if webgl, _ := fingerprint["webgl_renderer"].(string); strings.Contains(strings.ToLower(webgl), "swiftshader") {
+            risk += 25
+        }
+
+        if canvasHash, _ := fingerprint["canvas_hash"].(string); canvasHash == "" {
+            risk += 20
+        }
+    }
+
+    if timing, ok := metrics["timing"].(map[string]interface{}); ok {
+        if loadTime, _ := timing["load_time_ms"].(float64); loadTime > 0 && loadTime < 100 {
+            risk += 20
+        }
+    }
+
     if risk < 0 {
         risk = 0
+    }
+    if risk > 100 {
+        risk = 100
     }
 
     return risk, nil
 }
 
-func (d *Detector) AnalyzeAndUpdate(ctx context.Context, sessionID string) error {
-    prefilter, err := d.Prefilter(ctx, sessionID)
+func (d *Detector) AnalyzeAndUpdate(ctx context.Context, sessionID, ip, userAgent string) error {
+    prefilter, err := d.Prefilter(ctx, sessionID, ip, userAgent)
     if err != nil {
         return err
     }
@@ -137,19 +187,26 @@ func (d *Detector) AnalyzeAndUpdate(ctx context.Context, sessionID string) error
     }
 
     if err := d.store.UpdateRiskScore(ctx, sessionID, finalRisk); err != nil {
-        return fmt.Errorf("update risk score failed: %w", err)
+        return err
     }
 
     d.cache.Store(sessionID, cachedRisk{score: finalRisk, ts: time.Now()})
-    return nil
-}
 
-func (d *Detector) isIPBlacklisted(ctx context.Context, session *storage.Session) bool {
-    if session.SiteID == nil {
-        return false
+    if finalRisk >= 80 {
+        session, err := d.store.GetSession(ctx, sessionID)
+        if err == nil && session != nil && session.SiteID != nil {
+            d.store.BlockSession(ctx, sessionID)
+
+            d.store.AddToBlacklist(ctx, &storage.BlacklistEntry{
+                SiteID:    *session.SiteID,
+                IP:        session.IP,
+                Reason:    fmt.Sprintf("Auto-blocked by detector with risk score: %d", finalRisk),
+                ExpiresAt: nil,
+            })
+        }
     }
-    blacklisted, err := d.store.IsBlacklisted(ctx, *session.SiteID, session.IP)
-    return err == nil && blacklisted
+
+    return nil
 }
 
 func (d *Detector) headlessScore(userAgent string) int {
@@ -184,117 +241,34 @@ func (d *Detector) headlessScore(userAgent string) int {
     return score
 }
 
-func (d *Detector) rateLimitScore(ctx context.Context, ip string) int {
-    dbProvider, ok := d.store.(interface{ GetDB() *sql.DB })
-    if !ok {
-        return 0
-    }
-    db := dbProvider.GetDB()
-    if db == nil {
-        return 0
+func (d *Detector) rateLimitScore(ip string) int {
+    now := time.Now()
+
+    val, _ := d.requestCounts.LoadOrStore(ip, &[]time.Time{})
+    timestamps := val.(*[]time.Time)
+
+    clean := make([]time.Time, 0)
+    for _, ts := range *timestamps {
+        if now.Sub(ts) < time.Minute {
+            clean = append(clean, ts)
+        }
     }
 
-    var count int
-    query := `SELECT COUNT(*) FROM access_logs WHERE ip = $1 AND created_at > NOW() - interval '60 seconds'`
-    err := db.QueryRowContext(ctx, query, ip).Scan(&count)
-    if err != nil {
-        return 0
-    }
+    clean = append(clean, now)
+    *timestamps = clean
 
-    const limit = 60
-    if count > limit*5 {
+    count := len(clean)
+
+    if count > 100 {
         return 100
     }
-    if count > limit {
-        excess := float64(count-limit) / float64(limit)
-        add := int(excess * 25)
-        if add > 50 {
-            add = 50
-        }
-        return add
-    }
-    return 0
-}
-
-func (d *Detector) behaviorScore(ctx context.Context, sessionID string) int {
-    dbProvider, ok := d.store.(interface{ GetDB() *sql.DB })
-    if !ok {
-        return 0
-    }
-    db := dbProvider.GetDB()
-    if db == nil {
-        return 0
-    }
-
-    var eventCount int
-    var avgGap float64
-
-    query := `
-        SELECT 
-            COUNT(*) as event_count,
-            EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / NULLIF(COUNT(*) - 1, 0) as avg_gap
-        FROM behavior_events 
-        WHERE session_id = $1 AND recorded_at > NOW() - interval '5 minutes'
-    `
-    err := db.QueryRowContext(ctx, query, sessionID).Scan(&eventCount, &avgGap)
-    if err != nil {
-        return 0
-    }
-
-    if eventCount == 0 {
+    if count > 60 {
         return 50
     }
-
-    risk := 0
-    if avgGap > 0 && avgGap < 0.5 && eventCount > 10 {
-        risk += 40
-    }
-    if eventCount > 500 {
-        risk += 30
-    }
-
-    var hasMouse, hasClick bool
-    mouseQuery := `SELECT EXISTS(SELECT 1 FROM behavior_events WHERE session_id = $1 AND event_type IN ('mousemove', 'mousedown', 'mouseup'))`
-    clickQuery := `SELECT EXISTS(SELECT 1 FROM behavior_events WHERE session_id = $1 AND event_type = 'click')`
-    db.QueryRowContext(ctx, mouseQuery, sessionID).Scan(&hasMouse)
-    db.QueryRowContext(ctx, clickQuery, sessionID).Scan(&hasClick)
-
-    if hasClick && !hasMouse {
-        risk += 30
-    }
-
-    if risk > 100 {
-        risk = 100
-    }
-    return risk
-}
-
-func (d *Detector) fingerprintAnomaly(ctx context.Context, sessionID, currentFP string) int {
-    lastFP, err := d.store.GetFingerprint(ctx, sessionID)
-    if err != nil || lastFP == "" {
-        return 0
-    }
-    if currentFP != "" && lastFP != currentFP {
+    if count > 30 {
         return 20
     }
     return 0
-}
-
-func (d *Detector) defaultSettings() *storage.ModuleSettings {
-    return &storage.ModuleSettings{
-        Analyzer: storage.AnalyzerSettings{
-            Enabled:           true,
-            RateLimiting:      true,
-            PatternAnalysis:   true,
-            HeadlessDetection: true,
-            Thresholds: storage.AnalyzerThreshold{
-                Low:    30,
-                Medium: 60,
-                High:   80,
-            },
-            Weights: storage.DefaultWeights(),
-        },
-    }
 }
 
 func (d *Detector) CleanCache() {
@@ -315,4 +289,21 @@ func (d *Detector) GetCachedRisk(sessionID string) (int, bool) {
         }
     }
     return 0, false
+}
+
+func getDefaultSettings() *storage.ModuleSettings {
+    return &storage.ModuleSettings{
+        Analyzer: storage.AnalyzerSettings{
+            Enabled:           true,
+            HeadlessDetection: true,
+            RateLimiting:      true,
+            PatternAnalysis:   true,
+            Thresholds: storage.AnalyzerThreshold{
+                Low:    30,
+                Medium: 60,
+                High:   80,
+            },
+            Weights: storage.DefaultWeights(),
+        },
+    }
 }

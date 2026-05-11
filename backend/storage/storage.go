@@ -243,7 +243,8 @@ type SessionStorage interface {
 
 	UpdateFingerprint(ctx context.Context, id string, fingerprint string) error
     GetFingerprint(ctx context.Context, id string) (string, error)
-    RecordBehaviorEvent(ctx context.Context, event *BehaviorEvent) error
+	UpdateSessionMetrics(ctx context.Context, sessionID string, metrics map[string]interface{}) error
+    GetSessionMetrics(ctx context.Context, sessionID string) (map[string]interface{}, error)
 }
 
 type SiteStorage interface {
