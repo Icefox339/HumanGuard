@@ -135,7 +135,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
 
 	handler := loggingMiddleware(corsMiddleware(mux))
-
+ 	handler = middleware.CSPMiddleware(handler)
 	// Rate limiting rules: different limits for different endpoints
 	rules := []middleware.Rule{
 		// Auth endpoints (strict: 10 requests per minute)

@@ -20,8 +20,6 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", requestID)
 		ctx := context.WithValue(r.Context(), RequestIDKey, requestID)
 
-		log.Printf("[%s] %s %s", requestID, r.Method, r.URL.Path)
-
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
