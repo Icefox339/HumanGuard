@@ -4,12 +4,13 @@ import (
 	"context"
 	"humanguard/auth"
 	"humanguard/handlers"
-	"humanguard/storage"
 	"humanguard/middleware"
+	"humanguard/storage"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 	"time"
 )
@@ -134,6 +135,54 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
 
 	handler := loggingMiddleware(corsMiddleware(mux))
+
+	// Rate limiting rules: different limits for different endpoints
+	rules := []middleware.Rule{
+		// Auth endpoints (strict: 10 requests per minute)
+		{
+			Pattern: regexp.MustCompile(`^/api/login$`),
+			Limit:   10.0 / 60.0,
+			Burst:   5,
+		},
+		{
+			Pattern: regexp.MustCompile(`^/api/users$`),
+			Limit:   10.0 / 60.0,
+			Burst:   5,
+		},
+		// File upload (moderate: 20 requests per minute)
+		{
+			Pattern: regexp.MustCompile(`^/api/files/upload`),
+			Limit:   20.0 / 60.0,
+			Burst:   10,
+		},
+		// Behavior collection (high volume: 300 requests per minute)
+		{
+			Pattern: regexp.MustCompile(`^/api/sessions/.*/behavior$`),
+			Limit:   300.0 / 60.0,
+			Burst:   100,
+		},
+		// Analysis trigger (moderate: 30 requests per minute)
+		{
+			Pattern: regexp.MustCompile(`^/api/sessions/.*/analyze$`),
+			Limit:   30.0 / 60.0,
+			Burst:   10,
+		},
+		// Session creation (moderate: 30 requests per minute)
+		{
+			Pattern: regexp.MustCompile(`^/api/sessions$`),
+			Limit:   30.0 / 60.0,
+			Burst:   10,
+		},
+		// Site operations (moderate: 30 requests per minute)
+		{
+			Pattern: regexp.MustCompile(`^/api/sites`),
+			Limit:   30.0 / 60.0,
+			Burst:   10,
+		},
+	}
+
+	rateLimiter := middleware.NewRateLimiter(rules)
+	handler = rateLimiter.Middleware(handler)
 	handler = middleware.RequestIDMiddleware(handler)
 	server := &http.Server{
 		Addr:         ":" + getEnv("PORT", "8080"),
@@ -171,11 +220,12 @@ func waitForShutdown(server *http.Server) {
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
-	})
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        requestID := middleware.GetRequestID(r.Context())
+        next.ServeHTTP(w, r)
+        log.Printf("[%s] %s %s %s", requestID, r.Method, r.URL.Path, time.Since(start))
+    })
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
