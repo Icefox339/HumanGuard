@@ -19,6 +19,7 @@ type Storage interface {
 	SettingsStorage
 	BlacklistStorage
 	AccessLogStorage
+	APIKeyStorage 
 
 	Close() error
 	Ping() error
