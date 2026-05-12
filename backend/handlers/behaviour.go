@@ -4,7 +4,6 @@ import (
     "encoding/json"
     "log"
     "net/http"
-    "time"
 
     "humanguard/auth"
     "humanguard/detector"
