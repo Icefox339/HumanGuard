@@ -1,0 +1,75 @@
+name: Deploy distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to deploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  REPOSITORY: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "${{ inputs.tag }}" --repo "${REPOSITORY}" --pattern "humanguard-${{ inputs.tag }}.tar.gz" --dir dist
+
+      - name: Copy bundle to target server
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: dist/humanguard-${{ inputs.tag }}.tar.gz
+          target: ${{ secrets.DEPLOY_PATH }}
+
+      - name: Remote deploy
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            tar -xzf "humanguard-${{ inputs.tag }}.tar.gz"
+            cd "humanguard-${{ inputs.tag }}"
+
+            project_name="humanguard"
+            letsencrypt_volume="${project_name}_letsencrypt"
+            app_domain="${{ vars.APP_DOMAIN }}"
+
+            cat > .env <<EOF
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            APP_DOMAIN=${app_domain}
+            EOF
+            chmod 600 .env
+
+            if docker volume inspect "${letsencrypt_volume}" >/dev/null 2>&1; then
+              echo "Lets Encrypt volume ${letsencrypt_volume} already exists; reusing existing certificate."
+            else
+              echo "Lets Encrypt volume ${letsencrypt_volume} is missing; issuing initial certificate."
+              docker compose -p "${project_name}" --profile certbot-init run --rm --service-ports certbot certonly --standalone -d "${app_domain}" -m "${{ secrets.LETSENCRYPT_EMAIL }}" --agree-tos --no-eff-email
+            fi
+
+            docker compose -p "${project_name}" pull
+            docker compose -p "${project_name}" up -d --remove-orphans
+            docker image prune -f
+            

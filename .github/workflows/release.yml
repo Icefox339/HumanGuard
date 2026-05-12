@@ -1,0 +1,177 @@
+name: Release distribution
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ${{ github.repository_owner }}/humanguard-backend
+  FRONTEND_IMAGE: ${{ github.repository_owner }}/humanguard-frontend
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        run: echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+
+      - name: Make GHCR packages public
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_ADMIN_PAT }}
+        run: |
+          set -euo pipefail
+
+          owner="${GITHUB_REPOSITORY_OWNER}"
+          owner_type="$(gh api "users/${owner}" --jq '.type')"
+
+          for package in humanguard-backend humanguard-frontend; do
+            if [[ "${owner_type}" == "Organization" ]]; then
+              gh api --method PATCH "orgs/${owner}/packages/container/${package}/visibility" -f visibility=public
+            else
+              gh api --method PATCH "user/packages/container/${package}/visibility" -f visibility=public
+            fi
+          done
+
+      - name: Prepare release bundle
+        run: |
+          set -euo pipefail
+
+          version="${GITHUB_REF_NAME}"
+          bundle_root="dist/humanguard-${version}"
+
+          mkdir -p "${bundle_root}/backend/migrations" "${bundle_root}/nginx"
+          cp -R backend/migrations/. "${bundle_root}/backend/migrations/"
+          cp infra/nginx/nginx.conf "${bundle_root}/nginx/nginx.conf"
+          cp docs/4_DEPLOY.md "${bundle_root}/DEPLOY.md"
+
+          cat > "${bundle_root}/.env.example" <<EOF
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=change-me
+          POSTGRES_DB=humanguard
+          APP_DOMAIN=example.com
+          EOF
+
+          cat > "${bundle_root}/docker-compose.yml" <<EOF
+          services:
+            postgres:
+              image: postgres:15
+              container_name: humanguard-postgres
+              environment:
+                - POSTGRES_USER=\${POSTGRES_USER}
+                - POSTGRES_PASSWORD=\${POSTGRES_PASSWORD}
+                - POSTGRES_DB=\${POSTGRES_DB}
+              volumes:
+                - pg_data:/var/lib/postgresql/data
+                - ./backend/migrations:/docker-entrypoint-initdb.d
+              networks:
+                - backend_network
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U postgres -d humanguard"]
+                interval: 5s
+                timeout: 5s
+                retries: 5
+
+            backend:
+              image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${version}
+              container_name: humanguard-backend
+              environment:
+                - DATABASE_URL=postgres://\${POSTGRES_USER}:\${POSTGRES_PASSWORD}@postgres:5432/\${POSTGRES_DB}?sslmode=disable
+              networks:
+                - backend_network
+              depends_on:
+                postgres:
+                  condition: service_healthy
+
+            frontend:
+              image: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${version}
+              networks:
+                - backend_network
+
+            nginx:
+              image: nginx:alpine
+              environment:
+                - APP_DOMAIN=\${APP_DOMAIN}
+              command: >
+                /bin/sh -c "envsubst '$$APP_DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+                && nginx -g 'daemon off;'"
+              ports:
+                - "80:80"
+                - "443:443"
+              volumes:
+                - ./nginx/nginx.conf:/etc/nginx/nginx.conf.template:ro
+                - letsencrypt:/etc/letsencrypt
+                - certbot_www:/var/www/certbot
+              networks:
+                - backend_network
+              depends_on:
+                - backend
+                - frontend
+
+            certbot:
+              image: certbot/certbot:latest
+              profiles: ["certbot-init"]
+              ports:
+                - "80:80"
+              volumes:
+                - letsencrypt:/etc/letsencrypt
+                - certbot_www:/var/www/certbot
+              networks:
+                - backend_network
+
+          volumes:
+            pg_data:
+            letsencrypt:
+            certbot_www:
+
+          networks:
+            backend_network:
+              driver: bridge
+          EOF
+
+          tar -czf "dist/humanguard-${version}.tar.gz" -C dist "humanguard-${version}"
+          sha256sum "dist/humanguard-${version}.tar.gz" > "dist/humanguard-${version}.tar.gz.sha256"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/humanguard-${{ steps.version.outputs.tag }}.tar.gz
+            dist/humanguard-${{ steps.version.outputs.tag }}.tar.gz.sha256
