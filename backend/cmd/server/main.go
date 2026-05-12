@@ -5,6 +5,7 @@ import (
 	"humanguard/auth"
 	"humanguard/handlers"
 	"humanguard/storage"
+	"humanguard/middleware"
 	"log"
 	"net/http"
 	"os"
@@ -133,7 +134,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
 
 	handler := loggingMiddleware(corsMiddleware(mux))
-
+	handler = middleware.RequestIDMiddleware(handler)
 	server := &http.Server{
 		Addr:         ":" + getEnv("PORT", "8080"),
 		Handler:      handler,
