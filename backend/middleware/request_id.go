@@ -3,7 +3,6 @@ package middleware
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/gofrs/uuid"
