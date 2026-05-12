@@ -184,6 +184,30 @@ type ShareRecord struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type APIKey struct {
+    ID         string     `json:"id"`
+    UserID     string     `json:"user_id"`
+    Name       string     `json:"name"`
+    KeyHash    string     `json:"-"`
+    Prefix     string     `json:"prefix"`
+    LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+    ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+    CreatedAt  time.Time  `json:"created_at"`
+    Revoked    bool       `json:"revoked"`
+    CreatedBy  *string    `json:"created_by,omitempty"`
+    Permissions []string  `json:"permissions"`
+}
+
+type APIKeyStorage interface {
+    CreateAPIKey(ctx context.Context, key *APIKey) error
+    GetAPIKeyByHash(ctx context.Context, keyHash string) (*APIKey, error)
+    GetAPIKeyByID(ctx context.Context, id string) (*APIKey, error)
+    ListAPIKeys(ctx context.Context, userID string) ([]*APIKey, error)
+    RevokeAPIKey(ctx context.Context, id string) error
+    UpdateAPIKeyLastUsed(ctx context.Context, id string) error
+    DeleteAPIKey(ctx context.Context, id string) error
+}
+
 type FileStorage interface {
 	CreateFile(ctx context.Context, file *FileRecord) error
 	GetFile(ctx context.Context, id string) (*FileRecord, error)
