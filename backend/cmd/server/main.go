@@ -134,8 +134,16 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.Handle("POST /api/files/share", authMiddleware(http.HandlerFunc(fileHandler.CreateShare)))
 	mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
 
+	// API Key management endpoints
+	apiKeyHandler := handlers.NewAPIKeyHandler(store)
+	mux.Handle("POST /api/keys", authMiddleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))
+	mux.Handle("GET /api/keys", authMiddleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)))
+	mux.Handle("DELETE /api/keys/{id}", authMiddleware(http.HandlerFunc(apiKeyHandler.RevokeAPIKey)))
+	mux.Handle("DELETE /api/keys/{id}/permanent", authMiddleware(http.HandlerFunc(apiKeyHandler.DeleteAPIKey)))
+
 	handler := loggingMiddleware(corsMiddleware(mux))
- 	handler = middleware.CSPMiddleware(handler)
+	handler = middleware.CSPMiddleware(handler)
+
 	// Rate limiting rules: different limits for different endpoints
 	rules := []middleware.Rule{
 		// Auth endpoints (strict: 10 requests per minute)
@@ -183,7 +191,13 @@ func startHTTPServer(store storage.Storage) *http.Server {
 
 	rateLimiter := middleware.NewRateLimiter(rules)
 	handler = rateLimiter.Middleware(handler)
+
+	// API Key authentication (tries to authenticate, falls back to JWT)
+	apiKeyAuth := middleware.NewAPIKeyAuthenticator(store)
+	handler = apiKeyAuth.Middleware(handler)
+
 	handler = middleware.RequestIDMiddleware(handler)
+
 	server := &http.Server{
 		Addr:         ":" + getEnv("PORT", "8080"),
 		Handler:      handler,
@@ -220,19 +234,19 @@ func waitForShutdown(server *http.Server) {
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        start := time.Now()
-        requestID := middleware.GetRequestID(r.Context())
-        next.ServeHTTP(w, r)
-        log.Printf("[%s] %s %s %s", requestID, r.Method, r.URL.Path, time.Since(start))
-    })
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		requestID := middleware.GetRequestID(r.Context())
+		next.ServeHTTP(w, r)
+		log.Printf("[%s] %s %s %s", requestID, r.Method, r.URL.Path, time.Since(start))
+	})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
