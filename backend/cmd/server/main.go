@@ -126,21 +126,21 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	fileHandler := handlers.NewFileHandler(store, fs)
 	behaviorHandler := handlers.NewBehaviorHandler(store)
 
-	mux.Handle("POST /api/sessions/{id}/behavior", authMiddleware(http.HandlerFunc(behaviorHandler.SubmitBehavior)))
-	mux.Handle("POST /api/sessions/{id}/analyze", authMiddleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
-	mux.Handle("POST /api/files/upload", authMiddleware(http.HandlerFunc(fileHandler.Upload)))
-	mux.Handle("GET /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Download)))
-	mux.Handle("DELETE /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Delete)))
-	mux.Handle("GET /api/files", authMiddleware(http.HandlerFunc(fileHandler.List)))
-	mux.Handle("POST /api/files/share", authMiddleware(http.HandlerFunc(fileHandler.CreateShare)))
+	mux.Handle("POST /api/sessions/{id}/behavior", combinedAuthMiddleware(http.HandlerFunc(behaviorHandler.SubmitBehavior)))
+	mux.Handle("POST /api/sessions/{id}/analyze", combinedAuthMiddleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
+	mux.Handle("POST /api/files/upload", combinedAuthMiddleware(http.HandlerFunc(fileHandler.Upload)))
+	mux.Handle("GET /api/files/{id}", combinedAuthMiddleware(http.HandlerFunc(fileHandler.Download)))
+	mux.Handle("DELETE /api/files/{id}", combinedAuthMiddleware(http.HandlerFunc(fileHandler.Delete)))
+	mux.Handle("GET /api/files", combinedAuthMiddleware(http.HandlerFunc(fileHandler.List)))
+	mux.Handle("POST /api/files/share", combinedAuthMiddleware(http.HandlerFunc(fileHandler.CreateShare)))
 	mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
 
 	// API keys
 	apiKeyHandler := handlers.NewAPIKeyHandler(store)
-	mux.Handle("POST /api/keys", authMiddleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))
-	mux.Handle("GET /api/keys", authMiddleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)))
-	mux.Handle("DELETE /api/keys/{id}", authMiddleware(http.HandlerFunc(apiKeyHandler.RevokeAPIKey)))
-	mux.Handle("DELETE /api/keys/{id}/permanent", authMiddleware(http.HandlerFunc(apiKeyHandler.DeleteAPIKey)))
+	mux.Handle("POST /api/keys", combinedAuthMiddleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))
+	mux.Handle("GET /api/keys", combinedAuthMiddleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)))
+	mux.Handle("DELETE /api/keys/{id}", combinedAuthMiddleware(http.HandlerFunc(apiKeyHandler.RevokeAPIKey)))
+	mux.Handle("DELETE /api/keys/{id}/permanent", combinedAuthMiddleware(http.HandlerFunc(apiKeyHandler.DeleteAPIKey)))
 
 	// Global middleware chain
 	handler := http.Handler(mux)
