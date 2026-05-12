@@ -9,11 +9,10 @@ import (
     "log"
     "net/http"
     "strings"
-    
+    "time"
     "humanguard/storage"
 )
 
-type contextKey string
 
 const APIKeyUserIDKey contextKey = "api_key_user_id"
 const APIKeyIDKey contextKey = "api_key_id"
