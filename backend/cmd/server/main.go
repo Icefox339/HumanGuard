@@ -65,8 +65,29 @@ func startHTTPServer(store storage.Storage) *http.Server {
         getEnv("KEYCLOAK_URL", "http://localhost:8081"),
     )
 
+    googleOAuth := auth.NewOAuthService(
+        "google",
+        getEnv("GOOGLE_CLIENT_ID", ""),
+        getEnv("GOOGLE_CLIENT_SECRET", ""),
+        "http://localhost:8080/api/auth/google/callback",
+    )
+
+    githubOAuth := auth.NewOAuthService(
+        "github",
+        getEnv("GITHUB_CLIENT_ID", ""),
+        getEnv("GITHUB_CLIENT_SECRET", ""),
+        "http://localhost:8080/api/auth/github/callback",
+    )
     // User handler
-    userHandler := handlers.NewUserHandler(store, jwtService, totpService, oauthService, userSessionManager)
+     userHandler := handlers.NewUserHandler(
+        store, 
+        jwtService, 
+        totpService, 
+        oauthService,      // Keycloak
+        googleOAuth,       // Google
+        githubOAuth,       // GitHub
+        userSessionManager,
+    )
     authMiddleware := auth.NewAuthMiddleware(jwtService, userSessionManager, store)
     
     // Role middleware
@@ -77,6 +98,10 @@ func startHTTPServer(store storage.Storage) *http.Server {
     mux.HandleFunc("POST /api/login", userHandler.Login)
     mux.HandleFunc("GET /api/auth/keycloak/login", userHandler.KeycloakLogin)
     mux.HandleFunc("GET /api/auth/keycloak/callback", userHandler.KeycloakCallback)
+	mux.HandleFunc("GET /api/auth/google/login", userHandler.GoogleLogin)
+	mux.HandleFunc("GET /api/auth/google/callback", userHandler.GoogleCallback)
+	mux.HandleFunc("GET /api/auth/github/login", userHandler.GithubLogin)
+	mux.HandleFunc("GET /api/auth/github/callback", userHandler.GithubCallback)
 
     // Authenticated endpoints (any valid JWT or API key)
     mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))

@@ -21,19 +21,30 @@ type UserHandler struct {
 	jwt            *auth.JWTService
 	totp           *auth.TOTPService
 	oauth          *auth.OAuthService
+	googleOAuth    *auth.OAuthService    
+	githubOAuth    *auth.OAuthService  
 	sessionManager *auth.UserSessionManager
 }
 
-func NewUserHandler(store storage.Storage, jwtService *auth.JWTService, totpService *auth.TOTPService, oauthService *auth.OAuthService, sm *auth.UserSessionManager) *UserHandler {
-	return &UserHandler{
-		storage:        store,
-		jwt:            jwtService,
-		totp:           totpService,
-		oauth:          oauthService,
-		sessionManager: sm,
-	}
+func NewUserHandler(
+    store storage.Storage,
+    jwtService *auth.JWTService,
+    totpService *auth.TOTPService,
+    oauthService *auth.OAuthService,
+    googleOAuth *auth.OAuthService,
+    githubOAuth *auth.OAuthService,
+    sm *auth.UserSessionManager,
+) *UserHandler {
+    return &UserHandler{
+        storage:        store,
+        jwt:            jwtService,
+        totp:           totpService,
+        oauth:          oauthService,
+        googleOAuth:    googleOAuth,
+        githubOAuth:    githubOAuth,
+        sessionManager: sm,
+    }
 }
-
 // GET /api/users
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
     users, err := h.storage.ListUsers(r.Context())
@@ -459,4 +470,118 @@ func (h *UserHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
+}
+
+func (h *UserHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
+	state := generateOAuthState()
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    state,
+		Path:     "/",
+		MaxAge:   600,
+		HttpOnly: true,
+	})
+	url := h.googleOAuth.GetAuthURL(state)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func (h *UserHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
+	stateCookie, err := r.Cookie("oauth_state")
+	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
+		http.Error(w, "Invalid state", http.StatusBadRequest)
+		return
+	}
+	
+	code := r.URL.Query().Get("code")
+	token, err := h.googleOAuth.ExchangeCode(r.Context(), code)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	userInfo, err := h.googleOAuth.GetUserInfo(r.Context(), token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	user, err := h.storage.GetOrCreateUserByOAuth(r.Context(), "google", userInfo.ID, userInfo.Email, userInfo.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	sessionID := uuid.New().String()
+	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, r.RemoteAddr, r.UserAgent())
+	jwtToken, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	user.PasswordHash = ""
+	user.TOTPSecret = nil
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": jwtToken,
+		"user":  user,
+	})
+}
+
+func (h *UserHandler) GithubLogin(w http.ResponseWriter, r *http.Request) {
+	state := generateOAuthState()
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    state,
+		Path:     "/",
+		MaxAge:   600,
+		HttpOnly: true,
+	})
+	url := h.githubOAuth.GetAuthURL(state)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func (h *UserHandler) GithubCallback(w http.ResponseWriter, r *http.Request) {
+	stateCookie, err := r.Cookie("oauth_state")
+	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
+		http.Error(w, "Invalid state", http.StatusBadRequest)
+		return
+	}
+	
+	code := r.URL.Query().Get("code")
+	token, err := h.githubOAuth.ExchangeCode(r.Context(), code)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	userInfo, err := h.githubOAuth.GetUserInfo(r.Context(), token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	user, err := h.storage.GetOrCreateUserByOAuth(r.Context(), "github", userInfo.ID, userInfo.Email, userInfo.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	sessionID := uuid.New().String()
+	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, r.RemoteAddr, r.UserAgent())
+	jwtToken, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	user.PasswordHash = ""
+	user.TOTPSecret = nil
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": jwtToken,
+		"user":  user,
+	})
 }
