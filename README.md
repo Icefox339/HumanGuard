@@ -112,7 +112,7 @@ MyGroup-core/
 │   └── api/
 │       └── README.md        # Описание API
 ├── .github/workflows/
-|           ├── release.yml  # CI/CD пайплайн для релизов и GHCR
+│           ├── release.yml  # CI/CD пайплайн для релизов и GHCR
 │           └── deploy.yml   # Ручной деплой по кнопке
 ├── .gitignore               # Игнорируемые файлы
 └── README.md                # Основная документация
