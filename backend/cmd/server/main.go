@@ -137,10 +137,10 @@ func startHTTPServer(store storage.Storage) *http.Server {
 
 	// API keys
 	apiKeyHandler := handlers.NewAPIKeyHandler(store)
-	mux.Handle("POST /api/keys", combinedAuthMiddleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))
-	mux.Handle("GET /api/keys", combinedAuthMiddleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)))
-	mux.Handle("DELETE /api/keys/{id}", combinedAuthMiddleware(http.HandlerFunc(apiKeyHandler.RevokeAPIKey)))
-	mux.Handle("DELETE /api/keys/{id}/permanent", combinedAuthMiddleware(http.HandlerFunc(apiKeyHandler.DeleteAPIKey)))
+	mux.Handle("POST /api/keys", authMiddleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))
+	mux.Handle("GET /api/keys", authMiddleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)))
+	mux.Handle("DELETE /api/keys/{id}", authMiddleware(http.HandlerFunc(apiKeyHandler.RevokeAPIKey)))
+	mux.Handle("DELETE /api/keys/{id}/permanent", authMiddleware(http.HandlerFunc(apiKeyHandler.DeleteAPIKey)))
 
 	// Global middleware chain
 	handler := http.Handler(mux)

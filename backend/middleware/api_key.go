@@ -119,35 +119,6 @@ func shouldSkipAuth(r *http.Request) bool {
     return false
 }
 
-func (a *APIKeyAuthenticator) HasPermission(permission string) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            apiKey := r.Header.Get("X-API-Key")
-            if apiKey == "" {
-                next.ServeHTTP(w, r)
-                return
-            }
-            
-            // Get key from context (set in Middleware)
-            keyID, _ := r.Context().Value(APIKeyIDKey).(string)
-            key, _ := a.storage.GetAPIKeyByID(r.Context(), keyID)
-            
-            if key != nil {
-                for _, p := range key.Permissions {
-                    if p == permission || p == "admin" {
-                        next.ServeHTTP(w, r)
-                        return
-                    }
-                }
-                writeAPIKeyError(w, "Insufficient permissions")
-                return
-            }
-            
-            next.ServeHTTP(w, r)
-        })
-    }
-}
-
 func extractPrefix(apiKey string) string {
     // Format: hg_v1_xxxxxxxxxxxxxxxxxxxx
     parts := strings.SplitN(apiKey, "_", 3)

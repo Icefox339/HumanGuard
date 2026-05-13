@@ -181,7 +181,6 @@ type APIKey struct {
     CreatedAt  time.Time  `json:"created_at"`
     Revoked    bool       `json:"revoked"`
     CreatedBy  *string    `json:"created_by,omitempty"`
-    Permissions []string  `json:"permissions"`
 }
 
 type SessionStats struct {
