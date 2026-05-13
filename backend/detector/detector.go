@@ -50,20 +50,20 @@ func (d *Detector) Prefilter(ctx context.Context, sessionID string, ip, userAgen
 
     session, err := d.store.GetSession(ctx, sessionID)
     if err != nil {
-        return nil, fmt.Errorf("get session failed: %w", err)
+        return nil, fmt.Errorf("get visitor session failed: %w", err)
     }
-    if session == nil || session.SiteID == nil {
+    if session == nil {
         return &PrefilterResult{Risk: 0, ShouldBlock: false, NeedDeep: false, Reason: "no_session"}, nil
     }
 
-    settings, err := d.store.GetSiteSettings(ctx, *session.SiteID)
+    settings, err := d.store.GetSiteSettings(ctx, session.SiteID)
     if err != nil {
         settings = getDefaultSettings()
     }
 
     risk := 0
 
-    blacklisted, err := d.store.IsBlacklisted(ctx, *session.SiteID, ip)
+    blacklisted, err := d.store.IsBlacklisted(ctx, session.SiteID, ip)
     if err == nil && blacklisted {
         return &PrefilterResult{
             Risk:        100,
@@ -103,6 +103,10 @@ func (d *Detector) DeepFilter(ctx context.Context, sessionID string, currentRisk
 
     metrics, err := d.store.GetSessionMetrics(ctx, sessionID)
     if err != nil {
+        return risk, nil
+    }
+
+    if len(metrics) == 0 {
         return risk, nil
     }
 
@@ -194,11 +198,11 @@ func (d *Detector) AnalyzeAndUpdate(ctx context.Context, sessionID, ip, userAgen
 
     if finalRisk >= 80 {
         session, err := d.store.GetSession(ctx, sessionID)
-        if err == nil && session != nil && session.SiteID != nil {
+        if err == nil && session != nil {
             d.store.BlockSession(ctx, sessionID)
 
             d.store.AddToBlacklist(ctx, &storage.BlacklistEntry{
-                SiteID:    *session.SiteID,
+                SiteID:    session.SiteID,
                 IP:        session.IP,
                 Reason:    fmt.Sprintf("Auto-blocked by detector with risk score: %d", finalRisk),
                 ExpiresAt: nil,

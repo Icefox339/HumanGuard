@@ -12,7 +12,7 @@ import (
 
 type Storage interface {
 	UserStorage
-	SessionStorage
+	MemorySessionStorage
 	FileStorage
 	ShareStorage
 	SiteStorage
@@ -45,21 +45,6 @@ type User struct {
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	LastLogin     *time.Time `json:"last_login"`
-}
-type Session struct {
-	ID           string    `json:"id"`
-	SiteID       *string   `json:"site_id"`
-	IP           string    `json:"ip"`
-	UserAgent    string    `json:"user_agent"`
-	Device       string    `json:"device"`
-	Location     string    `json:"location"`
-	IsActive     bool      `json:"is_active"`
-	RiskScore    int       `json:"risk_score"`
-	IsBlocked    bool      `json:"is_blocked"`
-	CaptchaShown bool      `json:"captcha_shown"`
-	CreatedAt    time.Time `json:"created_at"`
-	LastActivity time.Time `json:"last_activity"`
-	ExpiresAt    time.Time `json:"expires_at"`
 }
 
 type ModuleSettings struct {
@@ -199,6 +184,14 @@ type APIKey struct {
     Permissions []string  `json:"permissions"`
 }
 
+type SessionStats struct {
+    Total     int64   `json:"total"`
+    Active    int64   `json:"active"`
+    Blocked   int64   `json:"blocked"`
+    AvgRisk   float64 `json:"avg_risk"`
+    UniqueIPs int64   `json:"unique_ips"`
+}
+
 type APIKeyStorage interface {
     CreateAPIKey(ctx context.Context, key *APIKey) error
     GetAPIKeyByHash(ctx context.Context, keyHash string) (*APIKey, error)
@@ -249,27 +242,21 @@ type UserStorage interface {
 	CheckEmailExists(ctx context.Context, email string) (bool, error)
 }
 
-type SessionStorage interface {
-	CreateSession(ctx context.Context, session *Session) error
-	GetSession(ctx context.Context, id string) (*Session, error)
-	GetSessionByCookie(ctx context.Context, cookie string) (*Session, error)
-	UpdateSession(ctx context.Context, session *Session) error
-	UpdateSessionActivity(ctx context.Context, id string) error
-	DeactivateSession(ctx context.Context, id string) error
-
-	GetActiveSessionsBySite(ctx context.Context, siteID string, limit int) ([]*Session, error)
-	GetSuspiciousSessions(ctx context.Context, siteID string, minRisk int) ([]*Session, error)
-	BlockSession(ctx context.Context, id string) error
-	UnblockSession(ctx context.Context, id string) error
-	UpdateRiskScore(ctx context.Context, id string, score int) error
-	MarkCaptchaShown(ctx context.Context, id string) error
-	CleanupExpiredSessions(ctx context.Context) (int64, error)
-	GetSessionStats(ctx context.Context, siteID string) (*SessionStats, error)
-
-	UpdateFingerprint(ctx context.Context, id string, fingerprint string) error
-    GetFingerprint(ctx context.Context, id string) (string, error)
-	UpdateSessionMetrics(ctx context.Context, sessionID string, metrics map[string]interface{}) error
-    GetSessionMetrics(ctx context.Context, sessionID string) (map[string]interface{}, error)
+type MemorySessionStorage interface {
+    CreateSession(ctx context.Context, session *ActiveSession) error
+    GetSession(ctx context.Context, id string) (*ActiveSession, error)
+    UpdateSessionActivity(ctx context.Context, id string) error
+    DeactivateSession(ctx context.Context, id string) error
+    BlockSession(ctx context.Context, id string) error
+    UnblockSession(ctx context.Context, id string) error
+    UpdateRiskScore(ctx context.Context, id string, score int) error
+    MarkCaptchaShown(ctx context.Context, id string) error
+    UpdateSessionMetrics(ctx context.Context, id string, metrics map[string]interface{}) error
+    GetSessionMetrics(ctx context.Context, id string) (map[string]interface{}, error)
+    GetActiveSessionsBySite(ctx context.Context, siteID string, limit int) ([]*ActiveSession, error)
+    GetSuspiciousSessions(ctx context.Context, siteID string, minRisk int) ([]*ActiveSession, error)
+    GetSessionStats(ctx context.Context, siteID string) (*SessionStats, error)
+    CleanupExpiredSessions(ctx context.Context) (int64, error)
 }
 
 type SiteStorage interface {

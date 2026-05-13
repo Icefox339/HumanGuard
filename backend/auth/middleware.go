@@ -12,11 +12,12 @@ import (
 type contextKey string
 
 const (
-	KeyUserID contextKey = "userID"
-	KeyRole   contextKey = "role"
+	KeyUserID    contextKey = "userID"
+	KeyRole      contextKey = "role"
+	KeySessionID contextKey = "sessionID"
 )
 
-func AuthMiddleware(jwt *JWTService) func(http.Handler) http.Handler {
+func AuthMiddleware(jwt *JWTService, sessionManager *UserSessionManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestID := middleware.GetRequestID(r.Context())
@@ -26,6 +27,7 @@ func AuthMiddleware(jwt *JWTService) func(http.Handler) http.Handler {
 
 			adminEndpoints := []string{
 				"/api/keys",
+				"/api/admin/sessions",
 			}
 
 			for _, endpoint := range adminEndpoints {
@@ -62,7 +64,7 @@ func AuthMiddleware(jwt *JWTService) func(http.Handler) http.Handler {
 			}
 
 			token := strings.TrimPrefix(authHeader, "Bearer ")
-			userID, role, err := jwt.ValidateToken(token)
+			userID, role, sessionID, err := jwt.ValidateToken(token)
 			if err != nil {
 				log.Printf("[%s] Auth failed: invalid token - %v", requestID, err)
 				w.Header().Set("Content-Type", "application/json")
@@ -71,8 +73,22 @@ func AuthMiddleware(jwt *JWTService) func(http.Handler) http.Handler {
 				return
 			}
 
+			if sessionManager != nil {
+				if _, ok := sessionManager.Get(sessionID); ok {
+					sessionManager.UpdateLastSeen(sessionID)
+					log.Printf("[%s] Session validated: user=%s, session=%s", requestID, userID, sessionID)
+				} else {
+					log.Printf("[%s] Session not found or expired: session=%s", requestID, sessionID)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					w.Write([]byte(`{"error":"session expired or invalid"}`))
+					return
+				}
+			}
+
 			ctx := context.WithValue(r.Context(), KeyUserID, userID)
 			ctx = context.WithValue(ctx, KeyRole, role)
+			ctx = context.WithValue(ctx, KeySessionID, sessionID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -86,4 +102,9 @@ func GetUserID(ctx context.Context) string {
 func GetRole(ctx context.Context) string {
 	role, _ := ctx.Value(KeyRole).(string)
 	return role
+}
+
+func GetSessionID(ctx context.Context) string {
+	sid, _ := ctx.Value(KeySessionID).(string)
+	return sid
 }

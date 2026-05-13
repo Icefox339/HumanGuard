@@ -1,4 +1,3 @@
-// backend/handlers/user.go
 package handlers
 
 import (
@@ -13,21 +12,25 @@ import (
 
 	"humanguard/auth"
 	"humanguard/storage"
+
+	"github.com/google/uuid"
 )
 
 type UserHandler struct {
-	storage storage.Storage
-	jwt     *auth.JWTService
-	totp    *auth.TOTPService
-	oauth   *auth.OAuthService
+	storage        storage.Storage
+	jwt            *auth.JWTService
+	totp           *auth.TOTPService
+	oauth          *auth.OAuthService
+	sessionManager *auth.UserSessionManager
 }
 
-func NewUserHandler(store storage.Storage, jwtService *auth.JWTService, totpService *auth.TOTPService, oauthService *auth.OAuthService) *UserHandler {
+func NewUserHandler(store storage.Storage, jwtService *auth.JWTService, totpService *auth.TOTPService, oauthService *auth.OAuthService, sm *auth.UserSessionManager) *UserHandler {
 	return &UserHandler{
-		storage: store,
-		jwt:     jwtService,
-		totp:    totpService,
-		oauth:   oauthService,
+		storage:        store,
+		jwt:            jwtService,
+		totp:           totpService,
+		oauth:          oauthService,
+		sessionManager: sm,
 	}
 }
 
@@ -60,6 +63,8 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	user.PasswordHash = ""
+	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
@@ -186,7 +191,9 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	token, err := h.jwt.GenerateToken(user.ID, user.Role)
+	sessionID := uuid.New().String()
+	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, r.RemoteAddr, r.UserAgent())
+	token, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -196,12 +203,23 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	h.storage.UpdateLastLogin(r.Context(), user.ID)
 
+	user.PasswordHash = ""
+	user.TOTPSecret = nil
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"token": token,
 		"user":  user,
 	})
+}
+
+func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	sessionID := auth.GetSessionID(r.Context())
+	if sessionID != "" {
+		h.sessionManager.Delete(sessionID)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func generateOAuthState() string {
@@ -243,11 +261,16 @@ func (h *UserHandler) KeycloakCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwtToken, err := h.jwt.GenerateToken(user.ID, user.Role)
+	sessionID := uuid.New().String()
+	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, r.RemoteAddr, r.UserAgent())
+	jwtToken, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	user.PasswordHash = ""
+	user.TOTPSecret = nil
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -281,6 +304,8 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	user.PasswordHash = ""
+	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
@@ -305,6 +330,8 @@ func (h *UserHandler) GetUserByEmail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
+	user.PasswordHash = ""
+	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
@@ -399,6 +426,8 @@ func (h *UserHandler) GetUserByOAuth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	user.PasswordHash = ""
+	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
