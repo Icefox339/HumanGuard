@@ -111,7 +111,9 @@ MyGroup-core/
 │   ├── SYSTEM_SPECS.md      # Описание системы
 │   └── api/
 │       └── README.md        # Описание API
-├── .gitlab-ci.yml           # CI/CD пайплайн
+├── .github/workflows/
+│           ├── release.yml  # CI/CD пайплайн для релизов и GHCR
+│           └── deploy.yml   # Ручной деплой по кнопке
 ├── .gitignore               # Игнорируемые файлы
 └── README.md                # Основная документация
 ```
