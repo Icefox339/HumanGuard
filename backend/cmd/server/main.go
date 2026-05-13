@@ -126,8 +126,28 @@ func startHTTPServer(store storage.Storage) *http.Server {
     mux.Handle("GET /api/sites/{id}/sessions/suspicious", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSuspiciousSessions)))
     mux.Handle("GET /api/sites/{id}/stats", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionStats)))
 
-    // Files and behavior
-    fs := storage.NewLocalS3("./data/uploads")
+    var fs storage.S3Client
+    storageType := getEnv("STORAGE_TYPE", "local")
+    if storageType == "minio" {
+        endpoint := getEnv("MINIO_ENDPOINT", "localhost:9000")
+        accessKey := getEnv("MINIO_ACCESS_KEY", "minioadmin")
+        secretKey := getEnv("MINIO_SECRET_KEY", "minioadmin123")
+        bucket := getEnv("MINIO_BUCKET", "humanguard")
+        useSSL := getEnv("MINIO_USE_SSL", "false") == "true"
+        
+        minioClient, err := storage.NewMinIOClient(endpoint, accessKey, secretKey, bucket, useSSL)
+        if err != nil {
+            log.Printf("Warning: Failed to connect to MinIO: %v, falling back to local storage", err)
+            fs = storage.NewLocalS3("./data/uploads")
+        } else {
+            fs = minioClient
+            log.Println("Connected to MinIO storage")
+        }
+    } else {
+        fs = storage.NewLocalS3("./data/uploads")
+        log.Println("Using local file storage")
+    }
+    
     fileHandler := handlers.NewFileHandler(store, fs)
     behaviorHandler := handlers.NewBehaviorHandler(store)
 
