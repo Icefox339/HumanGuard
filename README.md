@@ -112,11 +112,19 @@ MyGroup-core/
 │   └── api/
 │       └── README.md        # Описание API
 ├── .github/workflows/
+│           ├── ci.yml       # CI для master и тегов: lint, SAST, SonarQube, Trivy
 │           ├── release.yml  # CI/CD пайплайн для релизов и GHCR
-│           └── deploy.yml   # Ручной деплой по кнопке
+│           └── deploy.yml   # Автоматический деплой по кнопке
 ├── .gitignore               # Игнорируемые файлы
 └── README.md                # Основная документация
 ```
+
+### CI-пайплайн
+
+Для SonarQube в GitHub нужны:
+
+- Secret `SONAR_TOKEN`
+- Variables `SONAR_ORGANIZATION` и `SONAR_PROJECT_KEY`
 
 ### Входные точки в программу
 
