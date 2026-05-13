@@ -78,7 +78,7 @@ jobs:
 
           if [ -f infra/docker-compose.release.yml ]; then
             export RELEASE_VERSION="${version}"
-            envsubst < infra/docker-compose.release.yml > "${bundle_root}/docker-compose.yml"
+            envsubst '${RELEASE_VERSION} ${GITHUB_REPOSITORY_OWNER}' < infra/docker-compose.release.yml > "${bundle_root}/docker-compose.yml"
           else
             echo "Required file infra/docker-compose.release.yml not found in repository" >&2
             exit 1

@@ -18,10 +18,10 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/humanguard-backend:${RELEASE_VERSION}
+    image: ghcr.io/$${GITHUB_REPOSITORY_OWNER}/humanguard-backend:$${RELEASE_VERSION}
     container_name: humanguard-backend
     environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      - DATABASE_URL=postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@postgres:5432/$${POSTGRES_DB}?sslmode=disable
     networks:
       - backend_network
     depends_on:
@@ -29,14 +29,14 @@ services:
         condition: service_healthy
 
   frontend:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/humanguard-frontend:${RELEASE_VERSION}
+    image: ghcr.io/$${GITHUB_REPOSITORY_OWNER}/humanguard-frontend:$${RELEASE_VERSION}
     networks:
       - backend_network
 
   nginx:
     image: nginx:alpine
     environment:
-      - APP_DOMAIN=${APP_DOMAIN}
+      - APP_DOMAIN=$${APP_DOMAIN}
     command: >
       /bin/sh -c "envsubst '$$APP_DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
       && nginx -g 'daemon off;'"

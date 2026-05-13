@@ -121,10 +121,9 @@ MyGroup-core/
 
 ### CI-пайплайн
 
-Для SonarQube в GitHub нужны:
+Для SonarQube в GitHub нужен:
 
 - Secret `SONAR_TOKEN`
-- Variables `SONAR_ORGANIZATION` и `SONAR_PROJECT_KEY`
 
 ### Входные точки в программу
 
