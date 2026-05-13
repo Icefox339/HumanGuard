@@ -45,14 +45,20 @@ jobs:
         run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
 
       - name: Run Go linters
+        id: go_lint
+        continue-on-error: true
         working-directory: backend
         run: $(go env GOPATH)/bin/golangci-lint run ./...
 
       - name: Run frontend linters
+        id: frontend_lint
+        continue-on-error: true
         working-directory: frontend
         run: npm run lint
 
       - name: Run frontend type check
+        id: frontend_typecheck
+        continue-on-error: true
         working-directory: frontend
         run: npm run typecheck
 
@@ -96,4 +102,12 @@ jobs:
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
-          
+
+      - name: Fail job if lint checks failed
+        if: always()
+        run: |
+          if [[ "${{ steps.go_lint.outcome }}" == "failure" || \
+                "${{ steps.frontend_lint.outcome }}" == "failure" || \
+                "${{ steps.frontend_typecheck.outcome }}" == "failure" ]]; then
+            exit 1
+          fi
