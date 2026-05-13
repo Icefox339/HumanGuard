@@ -18,7 +18,6 @@ type Storage interface {
 	SiteStorage
 	SettingsStorage
 	BlacklistStorage
-	AccessLogStorage
 	APIKeyStorage 
 
 	Close() error
@@ -125,21 +124,6 @@ type BehaviorEvent struct {
     RecordedAt time.Time       `json:"recorded_at"`
 }
 
-type AccessLog struct {
-	ID         string    `json:"id"`
-	SessionID  string    `json:"session_id"`
-	SiteID     string    `json:"site_id"`
-	IP         string    `json:"ip"`
-	Path       string    `json:"path"`
-	Method     string    `json:"method"`
-	UserAgent  string    `json:"user_agent"`
-	Referer    string    `json:"referer"`
-	StatusCode int       `json:"status_code"`
-	RiskScore  int       `json:"risk_score"`
-	Action     string    `json:"action"`
-	CreatedAt  time.Time `json:"created_at"`
-}
-
 type LogStats struct {
 	TotalRequests   int64   `json:"total_requests"`
 	BlockedRequests int64   `json:"blocked_requests"`
@@ -211,12 +195,6 @@ type FileStorage interface {
 type ShareStorage interface {
 	CreateShare(ctx context.Context, share *ShareRecord) (string, error)
 	GetFileByShareToken(ctx context.Context, token string) (*FileRecord, error)
-}
-type AccessLogStorage interface {
-	LogAccess(ctx context.Context, log *AccessLog) error
-	GetAccessLogs(ctx context.Context, siteID string) ([]*AccessLog, error)
-	GetLogStats(ctx context.Context, siteID string, from, to time.Time) (*LogStats, error)
-	CleanupOldLogs(ctx context.Context, siteID string, before time.Time) (int64, error)
 }
 
 type BlacklistStorage interface {

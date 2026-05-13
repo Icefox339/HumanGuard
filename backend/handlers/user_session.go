@@ -14,14 +14,8 @@ func NewUserSessionHandler(sm *auth.UserSessionManager) *UserSessionHandler {
     return &UserSessionHandler{sessionManager: sm}
 }
 
-// GET /api/admin/users/sessions - список сессий ВСЕХ пользователей (только для пользователей с role=admin)
+// GET /api/admin/users/sessions - проверка роли в middleware
 func (h *UserSessionHandler) ListAllUserSessions(w http.ResponseWriter, r *http.Request) {
-    currentUserRole := auth.GetRole(r.Context())
-    if currentUserRole != "admin" {
-        http.Error(w, "Forbidden: admin role required", http.StatusForbidden)
-        return
-    }
-    
     sessions := h.sessionManager.ListAll()
     
     w.Header().Set("Content-Type", "application/json")
@@ -31,14 +25,8 @@ func (h *UserSessionHandler) ListAllUserSessions(w http.ResponseWriter, r *http.
     })
 }
 
-// DELETE /api/admin/users/sessions/{session_id} - принудительное удаление любой сессии (только для админов)
+// DELETE /api/admin/users/sessions/{session_id}
 func (h *UserSessionHandler) ForceRevokeSession(w http.ResponseWriter, r *http.Request) {
-    currentUserRole := auth.GetRole(r.Context())
-    if currentUserRole != "admin" {
-        http.Error(w, "Forbidden: admin role required", http.StatusForbidden)
-        return
-    }
-    
     targetSessionID := r.PathValue("session_id")
     if targetSessionID == "" {
         http.Error(w, "session_id required", http.StatusBadRequest)
@@ -55,21 +43,15 @@ func (h *UserSessionHandler) ForceRevokeSession(w http.ResponseWriter, r *http.R
     
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(map[string]interface{}{
-        "message":      "Session revoked",
-        "session_id":   sess.ID,
-        "user_id":      sess.UserID,
-        "user_email":   sess.Email,
+        "message":    "Session revoked",
+        "session_id": sess.ID,
+        "user_id":    sess.UserID,
+        "user_email": sess.Email,
     })
 }
 
-// GET /api/admin/users/sessions/stats - статистика по сессиям (только для админов)
+// GET /api/admin/users/sessions/stats
 func (h *UserSessionHandler) GetSessionsStats(w http.ResponseWriter, r *http.Request) {
-    currentUserRole := auth.GetRole(r.Context())
-    if currentUserRole != "admin" {
-        http.Error(w, "Forbidden: admin role required", http.StatusForbidden)
-        return
-    }
-    
     sessions := h.sessionManager.ListAll()
     userSessionsMap := make(map[string]int)
     userInfoMap := make(map[string]map[string]string)
@@ -86,9 +68,9 @@ func (h *UserSessionHandler) GetSessionsStats(w http.ResponseWriter, r *http.Req
     
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(map[string]interface{}{
-        "total_sessions":      len(sessions),
-        "total_users":         len(userSessionsMap),
-        "sessions_per_user":   userSessionsMap,
-        "users_info":          userInfoMap,
+        "total_sessions":    len(sessions),
+        "total_users":       len(userSessionsMap),
+        "sessions_per_user": userSessionsMap,
+        "users_info":        userInfoMap,
     })
 }
