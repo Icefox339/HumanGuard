@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  pipeline:
+  lint:
     runs-on: ubuntu-latest
 
     steps:
@@ -62,6 +62,25 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
+      - name: Fail lint job if any checks failed
+        if: always()
+        run: |
+          if [[ "${{ steps.go_lint.outcome }}" == "failure" || \
+                "${{ steps.frontend_lint.outcome }}" == "failure" || \
+                "${{ steps.frontend_typecheck.outcome }}" == "failure" ]]; then
+            echo "One or more lint checks failed"
+            exit 1
+          fi
+
+  sast:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Run SAST scan with Semgrep
         id: semgrep_scan
         continue-on-error: true
@@ -84,6 +103,24 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Fail SAST job if any checks failed
+        if: always()
+        run: |
+          if [[ "${{ steps.semgrep_scan.outcome }}" == "failure" || \
+                "${{ steps.sonar_scan.outcome }}" == "failure" ]]; then
+            echo "One or more SAST checks failed"
+            exit 1
+          fi
+
+  build_and_scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Build backend image
         run: docker build -t humanguard-backend:ci ./backend
@@ -111,16 +148,11 @@ jobs:
           exit-code: 1
           severity: CRITICAL,HIGH
 
-      - name: Fail job if any checks failed
+      - name: Fail build and scan job if any checks failed
         if: always()
         run: |
-          if [[ "${{ steps.go_lint.outcome }}" == "failure" || \
-                "${{ steps.frontend_lint.outcome }}" == "failure" || \
-                "${{ steps.frontend_typecheck.outcome }}" == "failure" || \
-                "${{ steps.semgrep_scan.outcome }}" == "failure" || \
-                "${{ steps.sonar_scan.outcome }}" == "failure" || \
-                "${{ steps.trivy_backend_scan.outcome }}" == "failure" || \
+          if [[ "${{ steps.trivy_backend_scan.outcome }}" == "failure" || \
                 "${{ steps.trivy_frontend_scan.outcome }}" == "failure" ]]; then
-            echo "One or more checks failed"
+            echo "One or more build or scan checks failed"
             exit 1
           fi
