@@ -67,7 +67,8 @@ func startHTTPServer(store storage.Storage) *http.Server {
 
     // User handler
     userHandler := handlers.NewUserHandler(store, jwtService, totpService, oauthService, userSessionManager)
-    authMiddleware := auth.AuthMiddleware(jwtService, userSessionManager)
+    // Используем объединенный middleware, который проверяет и JWT, и API keys
+    authMiddleware := auth.NewAuthMiddleware(jwtService, userSessionManager, store)
     
     // Role middleware
     adminOnly := auth.RequireAdmin()
@@ -76,83 +77,84 @@ func startHTTPServer(store storage.Storage) *http.Server {
     // Public user endpoints (no auth required)
     mux.HandleFunc("POST /api/users", userHandler.CreateUser)
     mux.HandleFunc("POST /api/login", userHandler.Login)
+    mux.HandleFunc("POST /api/logout", userHandler.Logout)
     mux.HandleFunc("GET /api/auth/keycloak/login", userHandler.KeycloakLogin)
     mux.HandleFunc("GET /api/auth/keycloak/callback", userHandler.KeycloakCallback)
 
     // User endpoints (authenticated, user or admin)
-	mux.Handle("POST /api/logout", authMiddleware(http.HandlerFunc(userHandler.Logout)))
-    mux.Handle("GET /api/me", authMiddleware(http.HandlerFunc(userHandler.GetCurrentUser)))
-    mux.Handle("GET /api/users/email/{email}", authMiddleware(userOrAdmin(http.HandlerFunc(userHandler.GetUserByEmail))))
-    mux.Handle("GET /api/users/exists", authMiddleware(http.HandlerFunc(userHandler.CheckEmailExists)))
-    mux.Handle("GET /api/users/oauth/{provider}/{oauthId}", authMiddleware(http.HandlerFunc(userHandler.GetUserByOAuth)))
-    mux.Handle("POST /api/users/{id}/password", authMiddleware(userOrAdmin(http.HandlerFunc(userHandler.ChangePassword))))
-    mux.Handle("POST /api/users/{id}/avatar", authMiddleware(userOrAdmin(http.HandlerFunc(userHandler.UpdateAvatar))))
+    mux.Handle("GET /api/me", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetCurrentUser)))
+    mux.Handle("GET /api/users/email/{email}", authMiddleware.Middleware(userOrAdmin(http.HandlerFunc(userHandler.GetUserByEmail))))
+    mux.Handle("GET /api/users/exists", authMiddleware.Middleware(http.HandlerFunc(userHandler.CheckEmailExists)))
+    mux.Handle("GET /api/users/oauth/{provider}/{oauthId}", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetUserByOAuth)))
+    mux.Handle("POST /api/users/{id}/password", authMiddleware.Middleware(userOrAdmin(http.HandlerFunc(userHandler.ChangePassword))))
+    mux.Handle("POST /api/users/{id}/avatar", authMiddleware.Middleware(userOrAdmin(http.HandlerFunc(userHandler.UpdateAvatar))))
     
     // Admin only user management
-    mux.Handle("GET /api/users", authMiddleware(adminOnly(http.HandlerFunc(userHandler.ListUsers))))
-    mux.Handle("GET /api/users/{id}", authMiddleware(adminOnly(http.HandlerFunc(userHandler.GetUser))))
-    mux.Handle("PUT /api/users/{id}", authMiddleware(adminOnly(http.HandlerFunc(userHandler.UpdateUser))))
-    mux.Handle("DELETE /api/users/{id}", authMiddleware(adminOnly(http.HandlerFunc(userHandler.DeleteUser))))
+    mux.Handle("GET /api/users", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userHandler.ListUsers))))
+    mux.Handle("GET /api/users/{id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userHandler.GetUser))))
+    mux.Handle("PUT /api/users/{id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userHandler.UpdateUser))))
+    mux.Handle("DELETE /api/users/{id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userHandler.DeleteUser))))
 
     // Admin user sessions management
     userSessionHandler := handlers.NewUserSessionHandler(userSessionManager)
-    mux.Handle("GET /api/admin/users/sessions", authMiddleware(adminOnly(http.HandlerFunc(userSessionHandler.ListAllUserSessions))))
-    mux.Handle("GET /api/admin/users/sessions/stats", authMiddleware(adminOnly(http.HandlerFunc(userSessionHandler.GetSessionsStats))))
-    mux.Handle("DELETE /api/admin/users/sessions/{session_id}", authMiddleware(adminOnly(http.HandlerFunc(userSessionHandler.ForceRevokeSession))))
+    mux.Handle("GET /api/admin/users/sessions", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.ListAllUserSessions))))
+    mux.Handle("GET /api/admin/users/sessions/stats", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.GetSessionsStats))))
+    mux.Handle("DELETE /api/admin/users/sessions/{session_id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.ForceRevokeSession))))
 
     // Sites (user or admin can manage their own sites)
     siteHandler := handlers.NewSiteHandler(store)
-    mux.Handle("POST /api/sites", authMiddleware(http.HandlerFunc(siteHandler.CreateSite)))
-    mux.Handle("GET /api/sites", authMiddleware(http.HandlerFunc(siteHandler.ListSites)))
-    mux.Handle("GET /api/sites/{id}", authMiddleware(http.HandlerFunc(siteHandler.GetSite)))
-    mux.Handle("PUT /api/sites/{id}", authMiddleware(http.HandlerFunc(siteHandler.UpdateSite)))
-    mux.Handle("DELETE /api/sites/{id}", authMiddleware(http.HandlerFunc(siteHandler.DeleteSite)))
-    mux.Handle("POST /api/sites/{id}/activate", authMiddleware(http.HandlerFunc(siteHandler.ActivateSite)))
-    mux.Handle("POST /api/sites/{id}/suspend", authMiddleware(http.HandlerFunc(siteHandler.SuspendSite)))
-    mux.Handle("GET /api/sites/{id}/settings", authMiddleware(http.HandlerFunc(siteHandler.GetSiteSettings)))
-    mux.Handle("PUT /api/sites/{id}/settings", authMiddleware(http.HandlerFunc(siteHandler.UpdateSiteSettings)))
+    mux.Handle("POST /api/sites", authMiddleware.Middleware(http.HandlerFunc(siteHandler.CreateSite)))
+    mux.Handle("GET /api/sites", authMiddleware.Middleware(http.HandlerFunc(siteHandler.ListSites)))
+    mux.Handle("GET /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetSite)))
+    mux.Handle("PUT /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.UpdateSite)))
+    mux.Handle("DELETE /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.DeleteSite)))
+    mux.Handle("POST /api/sites/{id}/activate", authMiddleware.Middleware(http.HandlerFunc(siteHandler.ActivateSite)))
+    mux.Handle("POST /api/sites/{id}/suspend", authMiddleware.Middleware(http.HandlerFunc(siteHandler.SuspendSite)))
+    mux.Handle("GET /api/sites/{id}/settings", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetSiteSettings)))
+    mux.Handle("PUT /api/sites/{id}/settings", authMiddleware.Middleware(http.HandlerFunc(siteHandler.UpdateSiteSettings)))
 
     // Visitor sessions
     visitorSessionHandler := handlers.NewVisitorSessionHandler(store)
-    mux.Handle("POST /api/sessions", authMiddleware(http.HandlerFunc(visitorSessionHandler.CreateSession)))
-    mux.Handle("GET /api/sessions/{id}", authMiddleware(http.HandlerFunc(visitorSessionHandler.GetSession)))
-    mux.Handle("DELETE /api/sessions/{id}", authMiddleware(http.HandlerFunc(visitorSessionHandler.DeactivateSession)))
-    mux.Handle("POST /api/sessions/{id}/block", authMiddleware(http.HandlerFunc(visitorSessionHandler.BlockSession)))
-    mux.Handle("POST /api/sessions/{id}/unblock", authMiddleware(http.HandlerFunc(visitorSessionHandler.UnblockSession)))
-    mux.Handle("PATCH /api/sessions/{id}/risk", authMiddleware(http.HandlerFunc(visitorSessionHandler.UpdateRiskScore)))
-    mux.Handle("POST /api/sessions/{id}/activity", authMiddleware(http.HandlerFunc(visitorSessionHandler.UpdateSessionActivity)))
-    mux.Handle("POST /api/sessions/{id}/captcha", authMiddleware(http.HandlerFunc(visitorSessionHandler.MarkCaptchaShown)))
-    mux.Handle("POST /api/sessions/cleanup", authMiddleware(http.HandlerFunc(visitorSessionHandler.CleanupExpiredSessions)))
-    mux.Handle("GET /api/sites/{id}/sessions", authMiddleware(http.HandlerFunc(visitorSessionHandler.GetSessionsBySite)))
-    mux.Handle("GET /api/sites/{id}/sessions/suspicious", authMiddleware(http.HandlerFunc(visitorSessionHandler.GetSuspiciousSessions)))
-    mux.Handle("GET /api/sites/{id}/stats", authMiddleware(http.HandlerFunc(visitorSessionHandler.GetSessionStats)))
+    mux.Handle("POST /api/sessions", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.CreateSession)))
+    mux.Handle("GET /api/sessions/{id}", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSession)))
+    mux.Handle("DELETE /api/sessions/{id}", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.DeactivateSession)))
+    mux.Handle("POST /api/sessions/{id}/block", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.BlockSession)))
+    mux.Handle("POST /api/sessions/{id}/unblock", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.UnblockSession)))
+    mux.Handle("PATCH /api/sessions/{id}/risk", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.UpdateRiskScore)))
+    mux.Handle("POST /api/sessions/{id}/activity", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.UpdateSessionActivity)))
+    mux.Handle("POST /api/sessions/{id}/captcha", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.MarkCaptchaShown)))
+    mux.Handle("POST /api/sessions/cleanup", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.CleanupExpiredSessions)))
+    mux.Handle("GET /api/sites/{id}/sessions", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionsBySite)))
+    mux.Handle("GET /api/sites/{id}/sessions/suspicious", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSuspiciousSessions)))
+    mux.Handle("GET /api/sites/{id}/stats", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionStats)))
 
     // Files and behavior
     fs := storage.NewLocalS3("./data/uploads")
     fileHandler := handlers.NewFileHandler(store, fs)
     behaviorHandler := handlers.NewBehaviorHandler(store)
 
-    mux.Handle("POST /api/sessions/{id}/behavior", authMiddleware(http.HandlerFunc(behaviorHandler.SubmitBehavior)))
-    mux.Handle("POST /api/sessions/{id}/analyze", authMiddleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
-    mux.Handle("POST /api/files/upload", authMiddleware(http.HandlerFunc(fileHandler.Upload)))
-    mux.Handle("GET /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Download)))
-    mux.Handle("DELETE /api/files/{id}", authMiddleware(http.HandlerFunc(fileHandler.Delete)))
-    mux.Handle("GET /api/files", authMiddleware(http.HandlerFunc(fileHandler.List)))
-    mux.Handle("POST /api/files/share", authMiddleware(http.HandlerFunc(fileHandler.CreateShare)))
+    mux.Handle("POST /api/sessions/{id}/behavior", authMiddleware.Middleware(http.HandlerFunc(behaviorHandler.SubmitBehavior)))
+    mux.Handle("POST /api/sessions/{id}/analyze", authMiddleware.Middleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
+    mux.Handle("POST /api/files/upload", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Upload)))
+    mux.Handle("GET /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Download)))
+    mux.Handle("DELETE /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Delete)))
+    mux.Handle("GET /api/files", authMiddleware.Middleware(http.HandlerFunc(fileHandler.List)))
+    mux.Handle("POST /api/files/share", authMiddleware.Middleware(http.HandlerFunc(fileHandler.CreateShare)))
     mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
 
     // API keys (admin only)
     apiKeyHandler := handlers.NewAPIKeyHandler(store)
-    mux.Handle("POST /api/keys", authMiddleware(adminOnly(http.HandlerFunc(apiKeyHandler.CreateAPIKey))))
-    mux.Handle("GET /api/keys", authMiddleware(adminOnly(http.HandlerFunc(apiKeyHandler.ListAPIKeys))))
-    mux.Handle("DELETE /api/keys/{id}", authMiddleware(adminOnly(http.HandlerFunc(apiKeyHandler.RevokeAPIKey))))
-    mux.Handle("DELETE /api/keys/{id}/permanent", authMiddleware(adminOnly(http.HandlerFunc(apiKeyHandler.DeleteAPIKey))))
+    mux.Handle("POST /api/keys", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.CreateAPIKey))))
+    mux.Handle("GET /api/keys", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.ListAPIKeys))))
+    mux.Handle("DELETE /api/keys/{id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.RevokeAPIKey))))
+    mux.Handle("DELETE /api/keys/{id}/permanent", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.DeleteAPIKey))))
 
     // Global middleware chain
     handler := http.Handler(mux)
     handler = loggingMiddleware(handler)
     handler = corsMiddleware(handler)
     handler = middleware.CSPMiddleware(handler)
+    handler = middleware.RequestIDMiddleware(handler)
 
     // Rate limiting rules
     rules := []middleware.Rule{
@@ -168,10 +170,6 @@ func startHTTPServer(store storage.Storage) *http.Server {
     }
     rateLimiter := middleware.NewRateLimiter(rules)
     handler = rateLimiter.Middleware(handler)
-
-    apiKeyAuth := auth.NewAPIKeyAuthenticator(store)
-    handler = apiKeyAuth.Middleware(handler)
-    handler = middleware.RequestIDMiddleware(handler)
 
     server := &http.Server{
         Addr:         ":" + getEnv("PORT", "8080"),
