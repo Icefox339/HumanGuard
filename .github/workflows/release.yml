@@ -55,6 +55,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
 
       - name: Prepare release bundle
+        env:
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
 
@@ -74,10 +76,11 @@ jobs:
             exit 1
           fi
 
-          if [ -f infra/docker-compose.yml ]; then
-            cp infra/docker-compose.yml "${bundle_root}/docker-compose.yml"
+          if [ -f infra/docker-compose.release.yml ]; then
+            export RELEASE_VERSION="${version}"
+            envsubst < infra/docker-compose.release.yml > "${bundle_root}/docker-compose.yml"
           else
-            echo "Required file infra/docker-compose.yml not found in repository" >&2
+            echo "Required file infra/docker-compose.release.yml not found in repository" >&2
             exit 1
           fi
 
