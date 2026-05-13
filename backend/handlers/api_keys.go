@@ -25,7 +25,6 @@ func NewAPIKeyHandler(store storage.Storage) *APIKeyHandler {
 type CreateAPIKeyRequest struct {
 	Name       string    `json:"name"`
 	ExpiresIn  *int      `json:"expires_in_days,omitempty"`
-	Permissions []string `json:"permissions,omitempty"`
 }
 
 type APIKeyResponse struct {
@@ -102,7 +101,6 @@ func (h *APIKeyHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		KeyHash:     keyHash,
 		Prefix:      prefix,
 		ExpiresAt:   expiresAt,
-		Permissions: permissions,
 		CreatedBy:   &userID,
 	}
 

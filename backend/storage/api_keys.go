@@ -4,7 +4,6 @@ package storage
 import (
     "context"
     "database/sql"
-    "encoding/json"
     "fmt"
     "time"
 )
@@ -17,17 +16,15 @@ func (s *storage) CreateAPIKey(ctx context.Context, key *APIKey) error {
         key.CreatedAt = time.Now()
     }
     
-    permissionsJSON, _ := json.Marshal(key.Permissions)
-    
     query := `
         INSERT INTO api_keys (id, user_id, name, key_hash, prefix, 
-                              expires_at, created_at, created_by, permissions)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                              expires_at, created_at, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `
     
     _, err := s.db.ExecContext(ctx, query,
         key.ID, key.UserID, key.Name, key.KeyHash, key.Prefix,
-        key.ExpiresAt, key.CreatedAt, key.CreatedBy, permissionsJSON,
+        key.ExpiresAt, key.CreatedAt, key.CreatedBy,
     )
     
     if err != nil {
@@ -43,20 +40,19 @@ func (s *storage) CreateAPIKey(ctx context.Context, key *APIKey) error {
 func (s *storage) GetAPIKeyByHash(ctx context.Context, keyHash string) (*APIKey, error) {
     query := `
         SELECT id, user_id, name, key_hash, prefix, last_used_at, 
-               expires_at, created_at, revoked, created_by, permissions
+               expires_at, created_at, revoked, created_by
         FROM api_keys 
         WHERE key_hash = $1
     `
     
     var key APIKey
-    var permissionsJSON []byte
     var lastUsedAt, expiresAt sql.NullTime
     var createdBy sql.NullString
     
     err := s.db.QueryRowContext(ctx, query, keyHash).Scan(
         &key.ID, &key.UserID, &key.Name, &key.KeyHash, &key.Prefix,
         &lastUsedAt, &expiresAt, &key.CreatedAt, &key.Revoked,
-        &createdBy, &permissionsJSON,
+        &createdBy,
     )
     
     if err != nil {
@@ -74,10 +70,6 @@ func (s *storage) GetAPIKeyByHash(ctx context.Context, keyHash string) (*APIKey,
     }
     if createdBy.Valid {
         key.CreatedBy = &createdBy.String
-    }
-    
-    if len(permissionsJSON) > 0 {
-        json.Unmarshal(permissionsJSON, &key.Permissions)
     }
     
     return &key, nil
@@ -86,20 +78,19 @@ func (s *storage) GetAPIKeyByHash(ctx context.Context, keyHash string) (*APIKey,
 func (s *storage) GetAPIKeyByID(ctx context.Context, id string) (*APIKey, error) {
     query := `
         SELECT id, user_id, name, key_hash, prefix, last_used_at, 
-               expires_at, created_at, revoked, created_by, permissions
+               expires_at, created_at, revoked, created_by
         FROM api_keys 
         WHERE id = $1
     `
     
     var key APIKey
-    var permissionsJSON []byte
     var lastUsedAt, expiresAt sql.NullTime
     var createdBy sql.NullString
     
     err := s.db.QueryRowContext(ctx, query, id).Scan(
         &key.ID, &key.UserID, &key.Name, &key.KeyHash, &key.Prefix,
         &lastUsedAt, &expiresAt, &key.CreatedAt, &key.Revoked,
-        &createdBy, &permissionsJSON,
+        &createdBy,
     )
     
     if err != nil {
@@ -119,17 +110,13 @@ func (s *storage) GetAPIKeyByID(ctx context.Context, id string) (*APIKey, error)
         key.CreatedBy = &createdBy.String
     }
     
-    if len(permissionsJSON) > 0 {
-        json.Unmarshal(permissionsJSON, &key.Permissions)
-    }
-    
     return &key, nil
 }
 
 func (s *storage) ListAPIKeys(ctx context.Context, userID string) ([]*APIKey, error) {
     query := `
         SELECT id, user_id, name, key_hash, prefix, last_used_at, 
-               expires_at, created_at, revoked, created_by, permissions
+               expires_at, created_at, revoked, created_by
         FROM api_keys 
         WHERE user_id = $1
         ORDER BY created_at DESC
@@ -144,14 +131,13 @@ func (s *storage) ListAPIKeys(ctx context.Context, userID string) ([]*APIKey, er
     var keys []*APIKey
     for rows.Next() {
         var key APIKey
-        var permissionsJSON []byte
         var lastUsedAt, expiresAt sql.NullTime
         var createdBy sql.NullString
         
         err := rows.Scan(
             &key.ID, &key.UserID, &key.Name, &key.KeyHash, &key.Prefix,
             &lastUsedAt, &expiresAt, &key.CreatedAt, &key.Revoked,
-            &createdBy, &permissionsJSON,
+            &createdBy,
         )
         if err != nil {
             return nil, err
@@ -165,9 +151,6 @@ func (s *storage) ListAPIKeys(ctx context.Context, userID string) ([]*APIKey, er
         }
         if createdBy.Valid {
             key.CreatedBy = &createdBy.String
-        }
-        if len(permissionsJSON) > 0 {
-            json.Unmarshal(permissionsJSON, &key.Permissions)
         }
         
         keys = append(keys, &key)

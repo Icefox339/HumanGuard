@@ -69,8 +69,7 @@ CREATE TABLE api_keys (
     expires_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     revoked BOOLEAN DEFAULT FALSE,
-    created_by UUID REFERENCES users(id),
-    permissions JSONB DEFAULT '[]'::jsonb
+    created_by UUID REFERENCES users(id)
 );
 
 CREATE INDEX idx_users_email ON users(email);
