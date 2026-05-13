@@ -48,7 +48,10 @@ jobs:
             set -euo pipefail
             cd "${{ secrets.DEPLOY_PATH }}/dist"
             tar -xzf "humanguard-${{ inputs.tag }}.tar.gz"
-            cd "humanguard-${{ inputs.tag }}"
+            rm -f "humanguard-${{ inputs.tag }}.tar.gz"
+            rm -rf "humanguard"
+            mv "humanguard-${{ inputs.tag }}" "humanguard"
+            cd "humanguard"
 
             project_name="humanguard"
             letsencrypt_volume="${project_name}_letsencrypt"
