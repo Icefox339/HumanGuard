@@ -63,6 +63,8 @@ jobs:
         run: npm run typecheck
 
       - name: Run SAST scan with Semgrep
+        id: semgrep_scan
+        continue-on-error: true
         run: |
           docker run --rm \
             -v "${GITHUB_WORKSPACE}:/src" \
@@ -77,6 +79,8 @@ jobs:
             /src
 
       - name: SonarQube Scan
+        id: sonar_scan
+        continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -88,6 +92,8 @@ jobs:
         run: docker build -t humanguard-frontend:ci ./frontend
 
       - name: Scan backend image with Trivy
+        id: trivy_backend_scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: humanguard-backend:ci
@@ -96,6 +102,8 @@ jobs:
           severity: CRITICAL,HIGH
 
       - name: Scan frontend image with Trivy
+        id: trivy_frontend_scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: humanguard-frontend:ci
@@ -103,11 +111,16 @@ jobs:
           exit-code: 1
           severity: CRITICAL,HIGH
 
-      - name: Fail job if lint checks failed
+      - name: Fail job if any checks failed
         if: always()
         run: |
           if [[ "${{ steps.go_lint.outcome }}" == "failure" || \
                 "${{ steps.frontend_lint.outcome }}" == "failure" || \
-                "${{ steps.frontend_typecheck.outcome }}" == "failure" ]]; then
+                "${{ steps.frontend_typecheck.outcome }}" == "failure" || \
+                "${{ steps.semgrep_scan.outcome }}" == "failure" || \
+                "${{ steps.sonar_scan.outcome }}" == "failure" || \
+                "${{ steps.trivy_backend_scan.outcome }}" == "failure" || \
+                "${{ steps.trivy_frontend_scan.outcome }}" == "failure" ]]; then
+            echo "One or more checks failed"
             exit 1
           fi
