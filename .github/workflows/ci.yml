@@ -116,10 +116,11 @@ jobs:
         run: |
           if [[ "${{ steps.go_lint.outcome }}" == "failure" || \
                 "${{ steps.frontend_lint.outcome }}" == "failure" || \
-                "${{ steps.frontend_typecheck.outcome }}" == "failure" ]]; then
+                "${{ steps.frontend_typecheck.outcome }}" == "failure" || \
                 "${{ steps.semgrep_scan.outcome }}" == "failure" || \
                 "${{ steps.sonar_scan.outcome }}" == "failure" || \
                 "${{ steps.trivy_backend_scan.outcome }}" == "failure" || \
                 "${{ steps.trivy_frontend_scan.outcome }}" == "failure" ]]; then
+            echo "One or more checks failed"
             exit 1
           fi
