@@ -19,24 +19,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download release bundle
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          gh release download "${{ inputs.tag }}" --repo "${REPOSITORY}" --pattern "humanguard-${{ inputs.tag }}.tar.gz" --dir dist
-
-      - name: Copy bundle to target server
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          source: dist/humanguard-${{ inputs.tag }}.tar.gz
-          target: ${{ secrets.DEPLOY_PATH }}
-
       - name: Remote deploy
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -46,7 +28,9 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -euo pipefail
-            cd "${{ secrets.DEPLOY_PATH }}/dist"
+            mkdir -p "${{ secrets.DEPLOY_PATH }}"
+            cd "${{ secrets.DEPLOY_PATH }}"
+            wget "https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}/humanguard-${{ inputs.tag }}.tar.gz"
             tar -xzf "humanguard-${{ inputs.tag }}.tar.gz"
             rm -f "humanguard-${{ inputs.tag }}.tar.gz"
             rm -rf "humanguard"
@@ -72,7 +56,7 @@ jobs:
               docker compose -p "${project_name}" --profile certbot-init run --rm --service-ports certbot certonly --standalone -d "${app_domain}" -m "${{ secrets.LETSENCRYPT_EMAIL }}" --agree-tos --no-eff-email
             fi
 
-            docker compose -p "${project_name}" pull
-            docker compose -p "${project_name}" up -d --remove-orphans
+            docker compose -p "${project_name}" -f docker-compose.yml pull
+            docker compose -p "${project_name}" -f docker-compose.yml up -d --remove-orphans
             docker image prune -f
             
