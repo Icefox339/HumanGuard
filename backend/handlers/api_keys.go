@@ -1,3 +1,4 @@
+// backend/handlers/api_keys.go
 package handlers
 
 import (
@@ -47,6 +48,14 @@ type APIKeyListResponse struct {
 }
 
 func (h *APIKeyHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
+    // Security: API keys cannot create new API keys
+    if auth.GetAPIKeyID(r.Context()) != "" {
+        writeJSON(w, http.StatusForbidden, map[string]string{
+            "error": "API keys cannot create new API keys. Use JWT authentication.",
+        })
+        return
+    }
+
     userID := auth.GetUserID(r.Context())
     if userID == "" {
         apiKeyUserID := auth.GetAPIKeyUserID(r.Context())
@@ -146,6 +155,14 @@ func (h *APIKeyHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIKeyHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
+    // Security: API keys cannot revoke API keys
+    if auth.GetAPIKeyID(r.Context()) != "" {
+        writeJSON(w, http.StatusForbidden, map[string]string{
+            "error": "API keys cannot revoke API keys. Use JWT authentication.",
+        })
+        return
+    }
+
     keyID := r.PathValue("id")
     if keyID == "" {
         writeJSON(w, http.StatusBadRequest, map[string]string{"error": "key id required"})
@@ -153,6 +170,7 @@ func (h *APIKeyHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
     }
 
     userID := auth.GetUserID(r.Context())
+	role := auth.GetRole(r.Context())
     if userID == "" {
         userID = auth.GetAPIKeyUserID(r.Context())
         if userID == "" {
@@ -167,7 +185,7 @@ func (h *APIKeyHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    if key.UserID != userID {
+    if key.UserID != userID && role != "admin" {
         writeJSON(w, http.StatusForbidden, map[string]string{"error": "not your API key"})
         return
     }
@@ -181,6 +199,14 @@ func (h *APIKeyHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIKeyHandler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
+    // Security: API keys cannot delete API keys
+    if auth.GetAPIKeyID(r.Context()) != "" {
+        writeJSON(w, http.StatusForbidden, map[string]string{
+            "error": "API keys cannot delete API keys. Use JWT authentication.",
+        })
+        return
+    }
+
     keyID := r.PathValue("id")
     if keyID == "" {
         writeJSON(w, http.StatusBadRequest, map[string]string{"error": "key id required"})
@@ -188,6 +214,7 @@ func (h *APIKeyHandler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
     }
 
     userID := auth.GetUserID(r.Context())
+	role := auth.GetRole(r.Context())
     if userID == "" {
         userID = auth.GetAPIKeyUserID(r.Context())
         if userID == "" {
@@ -202,7 +229,7 @@ func (h *APIKeyHandler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    if key.UserID != userID {
+    if key.UserID != userID && role != "admin" {
         writeJSON(w, http.StatusForbidden, map[string]string{"error": "not your API key"})
         return
     }

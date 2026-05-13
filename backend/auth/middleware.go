@@ -167,3 +167,8 @@ func GetAPIKeyUserID(ctx context.Context) string {
     }
     return ""
 }
+
+func GetAPIKeyID(ctx context.Context) string {
+    id, _ := ctx.Value(KeyAPIKeyID).(string)
+    return id
+}

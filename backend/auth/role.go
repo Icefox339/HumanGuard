@@ -24,7 +24,3 @@ func RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
 func RequireAdmin() func(http.Handler) http.Handler {
     return RequireRole("admin")
 }
-
-func RequireUserOrAdmin() func(http.Handler) http.Handler {
-    return RequireRole("user", "admin")
-}
