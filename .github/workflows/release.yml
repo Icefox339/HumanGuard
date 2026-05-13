@@ -88,7 +88,7 @@ jobs:
               networks:
                 - backend_network
               healthcheck:
-                test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+                test: ["CMD-SHELL", "pg_isready -U \$\${POSTGRES_USER} -d \$\${POSTGRES_DB}"]
                 interval: 5s
                 timeout: 5s
                 retries: 5
@@ -114,7 +114,7 @@ jobs:
               environment:
                 - APP_DOMAIN=\${APP_DOMAIN}
               command: >
-                /bin/sh -c "envsubst '$$APP_DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+                /bin/sh -c "envsubst '\$\$APP_DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
                 && nginx -g 'daemon off;'"
               ports:
                 - "80:80"
