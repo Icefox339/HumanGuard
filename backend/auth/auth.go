@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type JWTService struct {
@@ -31,20 +32,38 @@ func (j *JWTService) GenerateToken(userID, role string) (string, error) {
 	return token.SignedString(j.secret)
 }
 
-func (j *JWTService) ValidateToken(tokenString string) (string, string, error) {
+func (j *JWTService) GenerateTokenWithSessionID(userID, role, sessionID string) (string, error) {
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"role":    role,
+		"sid":     sessionID,
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+		"iat":     time.Now().Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(j.secret)
+}
+
+func (j *JWTService) ValidateToken(tokenString string) (string, string, string, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return j.secret, nil
 	})
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		return "", "", fmt.Errorf("invalid token")
+		return "", "", "", fmt.Errorf("invalid token")
 	}
 	userID, _ := claims["user_id"].(string)
 	role, _ := claims["role"].(string)
-	return userID, role, nil
+	sessionID, _ := claims["sid"].(string)
+	
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
+	
+	return userID, role, sessionID, nil
 }
 
 type TOTPService struct{}
