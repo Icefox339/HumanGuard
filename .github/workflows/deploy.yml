@@ -46,7 +46,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -euo pipefail
-            cd "${{ secrets.DEPLOY_PATH }}"
+            cd "${{ secrets.DEPLOY_PATH }}/dist"
             tar -xzf "humanguard-${{ inputs.tag }}.tar.gz"
             cd "humanguard-${{ inputs.tag }}"
 
