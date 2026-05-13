@@ -76,11 +76,11 @@ func startHTTPServer(store storage.Storage) *http.Server {
     // Public user endpoints (no auth required)
     mux.HandleFunc("POST /api/users", userHandler.CreateUser)
     mux.HandleFunc("POST /api/login", userHandler.Login)
-    mux.HandleFunc("POST /api/logout", userHandler.Logout)
     mux.HandleFunc("GET /api/auth/keycloak/login", userHandler.KeycloakLogin)
     mux.HandleFunc("GET /api/auth/keycloak/callback", userHandler.KeycloakCallback)
 
     // User endpoints (authenticated, user or admin)
+	mux.Handle("POST /api/logout", authMiddleware(http.HandlerFunc(userHandler.Logout)))
     mux.Handle("GET /api/me", authMiddleware(http.HandlerFunc(userHandler.GetCurrentUser)))
     mux.Handle("GET /api/users/email/{email}", authMiddleware(userOrAdmin(http.HandlerFunc(userHandler.GetUserByEmail))))
     mux.Handle("GET /api/users/exists", authMiddleware(http.HandlerFunc(userHandler.CheckEmailExists)))
