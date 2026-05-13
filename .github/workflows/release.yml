@@ -67,10 +67,10 @@ jobs:
           cp docs/4_DEPLOY.md "${bundle_root}/DEPLOY.md"
 
           # Require repository-provided files; fail early if missing
-          if [ -f .env.example ]; then
-            cp .env.example "${bundle_root}/.env.example"
+          if [ -f infra/.env.example ]; then
+            cp infra/.env.example "${bundle_root}/.env.example"
           else
-            echo "Required file .env.example not found in repository" >&2
+            echo "Required file infra/.env.example not found in repository" >&2
             exit 1
           fi
 
