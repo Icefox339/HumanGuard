@@ -36,23 +36,23 @@ func NewUserHandler(store storage.Storage, jwtService *auth.JWTService, totpServ
 
 // GET /api/users
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := h.storage.ListUsers(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	for _, user := range users {
-		user.PasswordHash = ""
-		user.TOTPSecret = nil
-	}
-
-	if users == nil {
-		users = []*storage.User{}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+    users, err := h.storage.ListUsers(r.Context())
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    for _, user := range users {
+        user.PasswordHash = ""
+        user.TOTPSecret = nil
+    }
+    
+    if users == nil {
+        users = []*storage.User{}
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(users)
 }
 
 // GET /api/users/{id}
@@ -215,11 +215,19 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	sessionID := auth.GetSessionID(r.Context())
-	if sessionID != "" {
-		h.sessionManager.Delete(sessionID)
-	}
-	w.WriteHeader(http.StatusNoContent)
+    sessionID := auth.GetSessionID(r.Context())
+    log.Printf("[DEBUG] Logout called with sessionID: %s", sessionID)
+    
+    if sessionID != "" {
+        if sess, ok := h.sessionManager.Get(sessionID); ok {
+            log.Printf("[DEBUG] Session found for user: %s, deleting...", sess.UserID)
+            h.sessionManager.Delete(sessionID)
+            log.Printf("[DEBUG] Session deleted")
+        } else {
+            log.Printf("[DEBUG] Session NOT found: %s", sessionID)
+        }
+    }
+    w.WriteHeader(http.StatusNoContent)
 }
 
 func generateOAuthState() string {
@@ -280,47 +288,47 @@ func (h *UserHandler) KeycloakCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	var req struct {
-		Name string `json:"name"`
-		Role string `json:"role"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-	user, err := h.storage.GetUserByID(r.Context(), id)
-	if err != nil {
-		http.Error(w, "User not found", http.StatusNotFound)
-		return
-	}
-	if req.Name != "" {
-		user.Name = req.Name
-	}
-	if req.Role != "" {
-		user.Role = req.Role
-	}
-	if err := h.storage.UpdateUser(r.Context(), user); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	user.PasswordHash = ""
-	user.TOTPSecret = nil
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+    id := r.PathValue("id")
+    var req struct {
+        Name string `json:"name"`
+        Role string `json:"role"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request body", http.StatusBadRequest)
+        return
+    }
+    user, err := h.storage.GetUserByID(r.Context(), id)
+    if err != nil {
+        http.Error(w, "User not found", http.StatusNotFound)
+        return
+    }
+    if req.Name != "" {
+        user.Name = req.Name
+    }
+    if req.Role != "" {
+        user.Role = req.Role
+    }
+    if err := h.storage.UpdateUser(r.Context(), user); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    user.PasswordHash = ""
+    user.TOTPSecret = nil
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(user)
 }
 
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := h.storage.DeleteUser(r.Context(), id); err != nil {
-		if errors.Is(err, storage.ErrUserNotFound) {
-			http.Error(w, "User not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+    id := r.PathValue("id")
+    if err := h.storage.DeleteUser(r.Context(), id); err != nil {
+        if errors.Is(err, storage.ErrUserNotFound) {
+            http.Error(w, "User not found", http.StatusNotFound)
+            return
+        }
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *UserHandler) GetUserByEmail(w http.ResponseWriter, r *http.Request) {
