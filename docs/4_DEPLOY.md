@@ -31,6 +31,8 @@ docker compose --profile certbot-init run --rm --service-ports certbot certonly 
 docker compose up -d --remove-orphans
 ```
 
+Сервис доступен на `https://ваш-домен`
+
 Остановить сервис:
 ``` bash
 docker compose down

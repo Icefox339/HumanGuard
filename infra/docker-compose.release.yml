@@ -8,17 +8,17 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ../backend/migrations:/docker-entrypoint-initdb.d
+      - ./backend/migrations:/docker-entrypoint-initdb.d
     networks:
       - backend_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   backend:
-    build: ../backend
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/humanguard-backend:${RELEASE_VERSION}
     container_name: humanguard-backend
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
@@ -29,7 +29,7 @@ services:
         condition: service_healthy
 
   frontend:
-    build: ../frontend
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/humanguard-frontend:${RELEASE_VERSION}
     networks:
       - backend_network
 
