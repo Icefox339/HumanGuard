@@ -172,14 +172,13 @@ func startHTTPServer(store storage.Storage) *http.Server {
     
     fileHandler := handlers.NewFileHandler(store, fs)
 
-	mux.Handle("POST /api/sessions/{id}/behavior", combinedAuthMiddleware(http.HandlerFunc(behaviorHandler.SubmitBehavior)))
-	mux.Handle("POST /api/sessions/{id}/analyze", combinedAuthMiddleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
-	mux.Handle("POST /api/files/upload", combinedAuthMiddleware(http.HandlerFunc(fileHandler.Upload)))
-	mux.Handle("GET /api/files/{id}", combinedAuthMiddleware(http.HandlerFunc(fileHandler.Download)))
-	mux.Handle("DELETE /api/files/{id}", combinedAuthMiddleware(http.HandlerFunc(fileHandler.Delete)))
-	mux.Handle("GET /api/files", combinedAuthMiddleware(http.HandlerFunc(fileHandler.List)))
-	mux.Handle("POST /api/files/share", combinedAuthMiddleware(http.HandlerFunc(fileHandler.CreateShare)))
-	mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
+    mux.Handle("POST /api/sessions/{id}/analyze", authMiddleware.Middleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
+    mux.Handle("POST /api/files/upload", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Upload)))
+    mux.Handle("GET /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Download)))
+    mux.Handle("DELETE /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Delete)))
+    mux.Handle("GET /api/files", authMiddleware.Middleware(http.HandlerFunc(fileHandler.List)))
+    mux.Handle("POST /api/files/share", authMiddleware.Middleware(http.HandlerFunc(fileHandler.CreateShare)))
+    mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
 
     // API keys
     apiKeyHandler := handlers.NewAPIKeyHandler(store)
@@ -210,10 +209,6 @@ func startHTTPServer(store storage.Storage) *http.Server {
     }
     rateLimiter := middleware.NewRateLimiter(rules)
     handler = rateLimiter.Middleware(handler)
-
-	apiKeyAuth := middleware.NewAPIKeyAuthenticator(store)
-	handler = apiKeyAuth.Middleware(handler)
-	handler = middleware.RequestIDMiddleware(handler)
 
     server := &http.Server{
         Addr:         ":" + getEnv("PORT", "8080"),
