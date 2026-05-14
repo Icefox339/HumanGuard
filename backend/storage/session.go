@@ -86,6 +86,7 @@ func (m *MemorySessionStore) DeactivateSession(ctx context.Context, id string) e
     }
     return ErrSessionNotFound
 }
+
 func (m *MemorySessionStore) BlockSession(ctx context.Context, id string) error {
     if val, ok := m.sessions.Load(id); ok {
         session := val.(*ActiveSession)
