@@ -1,4 +1,3 @@
-// backend/handlers/file.go
 package handlers
 
 import (
@@ -51,7 +50,7 @@ type FileHandler struct {
 
 type UploadProgress struct {
 	UploadID   string `json:"upload_id"`
-	UserID     string `json:"-"` 
+	UserID     string `json:"-"`
 	BytesDone  int64  `json:"bytes_done"`
 	TotalBytes int64  `json:"total_bytes"`
 	Percentage int    `json:"percentage"`
@@ -81,19 +80,24 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	uploadID := r.FormValue("upload_id")
+	if uploadID == "" {
+		uploadID = uuid.New().String()
+	}
+
+	h.mu.Lock()
+	h.progress[uploadID] = &UploadProgress{
+		UploadID:   uploadID,
+		UserID:     userID,
+		TotalBytes: contentLength,
+	}
+	h.mu.Unlock()
+
 	mr, err := r.MultipartReader()
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid multipart request"})
 		return
 	}
-
-	uploadID := uuid.New().String()
-	h.mu.Lock()
-	h.progress[uploadID] = &UploadProgress{
-		UploadID:   uploadID,
-		TotalBytes: contentLength,
-	}
-	h.mu.Unlock()
 
 	var fileRecord *storage.FileRecord
 	var bytesRead int64
@@ -309,59 +313,59 @@ func (h *FileHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
-    userID := auth.GetUserID(r.Context())
-    if userID == "" {
-        http.Error(w, "unauthorized", http.StatusUnauthorized)
-        return
-    }
+	userID := auth.GetUserID(r.Context())
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-    uploadID := r.URL.Query().Get("upload_id")
-    if uploadID == "" {
-        http.Error(w, "upload_id required", http.StatusBadRequest)
-        return
-    }
+	uploadID := r.URL.Query().Get("upload_id")
+	if uploadID == "" {
+		http.Error(w, "upload_id required", http.StatusBadRequest)
+		return
+	}
 
-    h.mu.RLock()
-    progress, exists := h.progress[uploadID]
-    h.mu.RUnlock()
+	h.mu.RLock()
+	progress, exists := h.progress[uploadID]
+	h.mu.RUnlock()
 
-    if !exists {
-        http.Error(w, "upload not found", http.StatusNotFound)
-        return
-    }
+	if !exists {
+		http.Error(w, "upload not found", http.StatusNotFound)
+		return
+	}
 
-    if progress.UserID != userID {
-        http.Error(w, "forbidden", http.StatusForbidden)
-        return
-    }
+	if progress.UserID != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 
-    conn, err := upgrader.Upgrade(w, r, nil)
-    if err != nil {
-        return
-    }
-    defer conn.Close()
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
 
-    ticker := time.NewTicker(500 * time.Millisecond)
-    defer ticker.Stop()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 
-    for range ticker.C {
-        h.mu.RLock()
-        p, ok := h.progress[uploadID]
-        h.mu.RUnlock()
+	for range ticker.C {
+		h.mu.RLock()
+		p, ok := h.progress[uploadID]
+		h.mu.RUnlock()
 
-        if !ok {
-            conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100})
-            return
-        }
+		if !ok {
+			conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100})
+			return
+		}
 
-        if err := conn.WriteJSON(p); err != nil {
-            return
-        }
+		if err := conn.WriteJSON(p); err != nil {
+			return
+		}
 
-        if p.Completed {
-            return
-        }
-    }
+		if p.Completed {
+			return
+		}
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
