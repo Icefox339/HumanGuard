@@ -93,6 +93,8 @@ func startHTTPServer(store storage.Storage) *http.Server {
     // Role middleware
     adminOnly := auth.RequireAdmin()
     behaviorHandler := handlers.NewBehaviorHandler(store)
+    visitorSessionHandler := handlers.NewVisitorSessionHandler(store)
+
 
     // Public user endpoints (no auth required)
     mux.HandleFunc("POST /api/users", userHandler.CreateUser)
@@ -103,7 +105,8 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/auth/google/callback", userHandler.GoogleCallback)
 	mux.HandleFunc("GET /api/auth/github/login", userHandler.GithubLogin)
 	mux.HandleFunc("GET /api/auth/github/callback", userHandler.GithubCallback)
-    mux.HandleFunc("POST /api/sessions/{id}/behavior", behaviorHandler.SubmitBehavior)
+    mux.HandleFunc("POST /api/check", visitorSessionHandler.CheckRequest)      // nginx
+    mux.HandleFunc("POST /api/behavior/{id}", behaviorHandler.SubmitBehavior)  // JS
 
     // Authenticated endpoints (any valid JWT or API key)
     mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))
@@ -139,16 +142,6 @@ func startHTTPServer(store storage.Storage) *http.Server {
     mux.Handle("PUT /api/sites/{id}/settings", authMiddleware.Middleware(http.HandlerFunc(siteHandler.UpdateSiteSettings)))
 
     // Visitor sessions
-    visitorSessionHandler := handlers.NewVisitorSessionHandler(store)
-    mux.Handle("POST /api/sessions", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.CreateSession)))
-    mux.Handle("GET /api/sessions/{id}", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSession)))
-    mux.Handle("DELETE /api/sessions/{id}", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.DeactivateSession)))
-    mux.Handle("POST /api/sessions/{id}/block", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.BlockSession)))
-    mux.Handle("POST /api/sessions/{id}/unblock", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.UnblockSession)))
-    mux.Handle("PATCH /api/sessions/{id}/risk", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.UpdateRiskScore)))
-    mux.Handle("POST /api/sessions/{id}/activity", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.UpdateSessionActivity)))
-    mux.Handle("POST /api/sessions/{id}/captcha", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.MarkCaptchaShown)))
-    mux.Handle("POST /api/sessions/cleanup", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.CleanupExpiredSessions)))
     mux.Handle("GET /api/sites/{id}/sessions", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionsBySite)))
     mux.Handle("GET /api/sites/{id}/sessions/suspicious", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSuspiciousSessions)))
     mux.Handle("GET /api/sites/{id}/stats", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionStats)))
