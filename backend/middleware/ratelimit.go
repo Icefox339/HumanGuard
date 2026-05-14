@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
+	"humanguard/metrics"
 )
 
 type Rule struct {
@@ -102,6 +103,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		limiter := rl.getLimiter(ip, path)
 
 		if !limiter.Allow() {
+			metrics.RateLimitExceeded.Inc()
 			requestID := GetRequestID(r.Context())
 			if requestID == "" {
                 requestID = "unknown"
