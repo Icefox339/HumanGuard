@@ -92,6 +92,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
     
     // Role middleware
     adminOnly := auth.RequireAdmin()
+    behaviorHandler := handlers.NewBehaviorHandler(store)
 
     // Public user endpoints (no auth required)
     mux.HandleFunc("POST /api/users", userHandler.CreateUser)
@@ -102,6 +103,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/auth/google/callback", userHandler.GoogleCallback)
 	mux.HandleFunc("GET /api/auth/github/login", userHandler.GithubLogin)
 	mux.HandleFunc("GET /api/auth/github/callback", userHandler.GithubCallback)
+    mux.HandleFunc("POST /api/sessions/{id}/behavior", behaviorHandler.SubmitBehavior)
 
     // Authenticated endpoints (any valid JWT or API key)
     mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))
@@ -174,7 +176,6 @@ func startHTTPServer(store storage.Storage) *http.Server {
     }
     
     fileHandler := handlers.NewFileHandler(store, fs)
-    behaviorHandler := handlers.NewBehaviorHandler(store)
 
 	mux.Handle("POST /api/sessions/{id}/behavior", combinedAuthMiddleware(http.HandlerFunc(behaviorHandler.SubmitBehavior)))
 	mux.Handle("POST /api/sessions/{id}/analyze", combinedAuthMiddleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
