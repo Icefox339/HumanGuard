@@ -6,6 +6,7 @@ import (
     "humanguard/handlers"
     "humanguard/middleware"
     "humanguard/storage"
+    "humanguard/metrics"
     "log"
     "net/http"
     "os"
@@ -13,6 +14,7 @@ import (
     "regexp"
     "syscall"
     "time"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -95,7 +97,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
     behaviorHandler := handlers.NewBehaviorHandler(store)
     visitorSessionHandler := handlers.NewVisitorSessionHandler(store)
 
-
+    mux.Handle("GET /metrics", promhttp.Handler())
     // Public user endpoints (no auth required)
     mux.HandleFunc("POST /api/users", userHandler.CreateUser)
     mux.HandleFunc("POST /api/login", userHandler.Login)
@@ -195,15 +197,16 @@ func startHTTPServer(store storage.Storage) *http.Server {
 
     // Rate limiting rules
     rules := []middleware.Rule{
-        {Pattern: regexp.MustCompile(`^/api/login$`), Limit: 10.0 / 60.0, Burst: 5},
-        {Pattern: regexp.MustCompile(`^/api/users$`), Limit: 10.0 / 60.0, Burst: 5},
-        {Pattern: regexp.MustCompile(`^/api/files/upload`), Limit: 20.0 / 60.0, Burst: 10},
-        {Pattern: regexp.MustCompile(`^/api/sessions/.*/behavior$`), Limit: 300.0 / 60.0, Burst: 100},
-        {Pattern: regexp.MustCompile(`^/api/sessions/.*/analyze$`), Limit: 30.0 / 60.0, Burst: 10},
-        {Pattern: regexp.MustCompile(`^/api/sessions$`), Limit: 30.0 / 60.0, Burst: 10},
-        {Pattern: regexp.MustCompile(`^/api/sites`), Limit: 30.0 / 60.0, Burst: 10},
+        {Pattern: regexp.MustCompile(`^/api/login$`), Limit: 5.0 / 60.0, Burst: 5},
+        {Pattern: regexp.MustCompile(`^/api/users$`), Limit: 10.0 / 60.0, Burst: 10},
+        {Pattern: regexp.MustCompile(`^/api/check$`), Limit: 100.0 / 60.0, Burst: 50},
+        {Pattern: regexp.MustCompile(`^/api/behavior/`), Limit: 300.0 / 60.0, Burst: 100},
+        {Pattern: regexp.MustCompile(`^/api/files/upload`), Limit: 10.0 / 60.0, Burst: 5},
+        {Pattern: regexp.MustCompile(`^/api/files/`), Limit: 30.0 / 60.0, Burst: 20},
+        {Pattern: regexp.MustCompile(`^/api/sites`), Limit: 30.0 / 60.0, Burst: 15},
         {Pattern: regexp.MustCompile(`^/api/keys`), Limit: 10.0 / 60.0, Burst: 5},
-        {Pattern: regexp.MustCompile(`^/api/admin/users/sessions`), Limit: 20.0 / 60.0, Burst: 10},
+        {Pattern: regexp.MustCompile(`^/api/admin/`), Limit: 20.0 / 60.0, Burst: 10},
+        {Pattern: regexp.MustCompile(`^/api/me`), Limit: 30.0 / 60.0, Burst: 15},
     }
     rateLimiter := middleware.NewRateLimiter(rules)
     handler = rateLimiter.Middleware(handler)
@@ -226,6 +229,23 @@ func startHTTPServer(store storage.Storage) *http.Server {
             log.Fatal(err)
         }
     }()
+
+    go func() {
+        ticker := time.NewTicker(30 * time.Second)
+        for range ticker.C {
+            stats, err := store.GetSessionStats(context.Background(), "")
+            if err == nil {
+                metrics.ActiveSessions.Set(float64(stats.Active))
+                metrics.AverageRiskScore.Set(stats.AvgRisk)
+            }
+            
+            highRisk, err := store.GetSuspiciousSessions(context.Background(), "", 80)
+            if err == nil {
+                metrics.HighRiskSessions.Set(float64(len(highRisk)))
+            }
+        }
+    }()
+
     return server
 }
 
