@@ -179,7 +179,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
     mux.Handle("GET /api/files", authMiddleware.Middleware(http.HandlerFunc(fileHandler.List)))
     mux.Handle("POST /api/files/share", authMiddleware.Middleware(http.HandlerFunc(fileHandler.CreateShare)))
     mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
-
+    mux.Handle("/api/files/upload/progress", authMiddleware.Middleware(http.HandlerFunc(fileHandler.UploadProgressWS)))
     // API keys
     apiKeyHandler := handlers.NewAPIKeyHandler(store)
     mux.Handle("POST /api/keys", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))

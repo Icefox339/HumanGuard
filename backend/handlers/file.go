@@ -51,6 +51,7 @@ type FileHandler struct {
 
 type UploadProgress struct {
 	UploadID   string `json:"upload_id"`
+	UserID     string `json:"-"` 
 	BytesDone  int64  `json:"bytes_done"`
 	TotalBytes int64  `json:"total_bytes"`
 	Percentage int    `json:"percentage"`
@@ -308,39 +309,59 @@ func (h *FileHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
-	uploadID := r.URL.Query().Get("upload_id")
-	if uploadID == "" {
-		http.Error(w, "upload_id required", http.StatusBadRequest)
-		return
-	}
+    userID := auth.GetUserID(r.Context())
+    if userID == "" {
+        http.Error(w, "unauthorized", http.StatusUnauthorized)
+        return
+    }
 
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
+    uploadID := r.URL.Query().Get("upload_id")
+    if uploadID == "" {
+        http.Error(w, "upload_id required", http.StatusBadRequest)
+        return
+    }
 
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
+    h.mu.RLock()
+    progress, exists := h.progress[uploadID]
+    h.mu.RUnlock()
 
-	for range ticker.C {
-		h.mu.RLock()
-		p, ok := h.progress[uploadID]
-		h.mu.RUnlock()
+    if !exists {
+        http.Error(w, "upload not found", http.StatusNotFound)
+        return
+    }
 
-		if !ok {
-			conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100})
-			return
-		}
+    if progress.UserID != userID {
+        http.Error(w, "forbidden", http.StatusForbidden)
+        return
+    }
 
-		if err := conn.WriteJSON(p); err != nil {
-			return
-		}
+    conn, err := upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        return
+    }
+    defer conn.Close()
 
-		if p.Completed {
-			return
-		}
-	}
+    ticker := time.NewTicker(500 * time.Millisecond)
+    defer ticker.Stop()
+
+    for range ticker.C {
+        h.mu.RLock()
+        p, ok := h.progress[uploadID]
+        h.mu.RUnlock()
+
+        if !ok {
+            conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100})
+            return
+        }
+
+        if err := conn.WriteJSON(p); err != nil {
+            return
+        }
+
+        if p.Completed {
+            return
+        }
+    }
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
