@@ -26,14 +26,14 @@ var (
 )
 
 var allowedTypes = map[string]bool{
-	"image/jpeg":      true,
-	"image/png":       true,
-	"image/gif":       true,
-	"image/webp":      true,
-	"application/pdf": true,
-	"text/plain":      true,
-	"text/csv":        true,
-	"application/zip": true,
+	"image/jpeg":       true,
+	"image/png":        true,
+	"image/gif":        true,
+	"image/webp":       true,
+	"application/pdf":  true,
+	"text/plain":       true,
+	"text/csv":         true,
+	"application/zip":  true,
 	"application/json": true,
 }
 
@@ -80,7 +80,7 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uploadID := r.FormValue("upload_id")
+	uploadID := r.URL.Query().Get("upload_id")
 	if uploadID == "" {
 		uploadID = uuid.New().String()
 	}
@@ -111,8 +111,11 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if part.FormName() == "file" {
-			filename := part.FileName()
+		formName := part.FormName()
+		fileName := part.FileName()
+
+		if formName == "file" {
+			filename := fileName
 			mimeType := part.Header.Get("Content-Type")
 
 			if !allowedTypes[mimeType] {
@@ -181,6 +184,7 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			}
 
 			break
+		} else {
 		}
 	}
 

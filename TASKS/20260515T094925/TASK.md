@@ -136,7 +136,7 @@ curl -X GET http://localhost:8080/api/me \
 }
 ```
 
-# Настройка сайта пользователем
+# Настройка сайта клиентом
 
 ## Создание сайта
 
@@ -340,4 +340,263 @@ curl -X GET http://localhost:8080/api/sites \
     "updated_at": "2026-05-15T10:20:44.643166Z"
   }
 ]
+```
+
+# Имитация нормального пользователя
+
+## Создание сессии
+
+``` bash
+curl -X POST http://localhost:8080/api/check \
+  -H "X-Site-ID: 4c0bafa1-3de9-496a-b001-44f1352351e9" \
+  -H "Content-Type: application/json"
+```
+
+Если сайт не активирован
+
+``` json
+{
+  "error": "site is not active"
+}
+```
+
+Если сайт активирован
+
+``` json
+{
+  "action": "allow",
+  "risk_score": 0,
+  "session_id": "07c46dc2-9862-4bde-9868-90aeba0e545c"
+}
+```
+
+Ид сессии сохраню в переменную в баш сессии
+
+``` bash
+SESSION_ID="07c46dc2-9862-4bde-9868-90aeba0e545c"
+```
+
+## Работа в рамках сессии
+
+### Отправка поведенческих метрик
+
+``` bash
+curl -X POST http://localhost:8080/api/behavior/$SESSION_ID \
+  -H "X-Site-ID: 4c0bafa1-3de9-496a-b001-44f1352351e9" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "'$SESSION_ID'",
+    "metrics": {
+      "counters": {
+        "mouse_move": 350,
+        "click": 15,
+        "scroll": 40,
+        "keydown": 80,
+        "duration_sec": 120
+      },
+      "fingerprint": {
+        "js_hash": "normal_user_123",
+        "webgl_renderer": "ANGLE (NVIDIA Corporation)",
+        "canvas_hash": "canvas_normal"
+      },
+      "timing": {
+        "load_time_ms": 800
+      }
+    }
+  }'
+```
+
+Ответ
+
+```
+{
+  "status": "accepted"
+}
+```
+
+### Проверка risk-score
+
+``` bash
+curl -X POST http://localhost:8080/api/check \
+  -H "X-Site-ID: 4c0bafa1-3de9-496a-b001-44f1352351e9" \
+  -H "Cookie: hg_session=$SESSION_ID"
+```
+
+Ответ
+
+``` json
+{
+  "action": "allow",
+  "risk_score": 0,
+  "session_id": "07c46dc2-9862-4bde-9868-90aeba0e545c"
+}
+```
+
+# Имитация бота
+
+## Создание сессии
+
+``` bash
+curl -X POST http://localhost:8080/api/check \
+  -H "X-Site-ID: 4c0bafa1-3de9-496a-b001-44f1352351e9" \
+  -H "Content-Type: application/json"
+```
+
+Ответ
+
+``` json
+{
+  "action": "allow",
+  "risk_score": 0,
+  "session_id": "8e9ac433-734b-427e-aa32-f80904909ae5"
+}
+```
+
+``` bash
+SESSION_ID_BOT="8e9ac433-734b-427e-aa32-f80904909ae5"
+```
+
+## Работа в рамках сессии
+
+### Отправка поведенческих метрик
+
+``` bash
+curl -X POST http://localhost:8080/api/behavior/$SESSION_ID_BOT \
+  -H "X-Site-ID: 4c0bafa1-3de9-496a-b001-44f1352351e9" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "'$SESSION_ID_BOT'",
+    "metrics": {
+      "counters": {
+        "mouse_move": 0,
+        "click": 0,
+        "scroll": 0,
+        "keydown": 0,
+        "duration_sec": 3
+      },
+      "fingerprint": {
+        "js_hash": "",
+        "webgl_renderer": "SwiftShader",
+        "canvas_hash": ""
+      },
+      "timing": {
+        "load_time_ms": 45
+      }
+    }
+  }'
+```
+
+Ответ
+
+``` json
+{
+  "status": "accepted"
+}
+```
+
+### Проверка risk-score
+
+``` bash
+curl -X POST http://localhost:8080/api/check \
+  -H "X-Site-ID: 4c0bafa1-3de9-496a-b001-44f1352351e9" \
+  -H "Cookie: hg_session=$SESSION_ID_BOT" \
+  -H "Content-Type: application/json"
+```
+
+``` json
+{
+  "action": "block",
+  "risk_score": 100,
+  "session_id": "e5722d95-c2fb-4482-8ac1-4b98055e3673"
+}
+```
+
+В реальной инфраструктуре когда nginx клиента получает `"action": block` он не должен пускать к сайту
+
+# API ключи
+
+## Создание API ключа по JWT токену
+
+API ключ можно использовать вместо JWT токена. JWT токен истекает
+быстро (24ч фиксировано в коде), а время жизни API ключа определяется
+на стороне клиента в момент создания
+
+Например на 30 дней создаю
+
+``` bash
+curl -X POST http://localhost:8080/api/keys \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test API Key",
+    "expires_in_days": 30
+  }'
+```
+
+Ответ
+
+``` json
+{
+  "id": "cb511f77-7178-4bbf-a905-7bc8edd61c4f",
+  "name": "Test API Key",
+  "key": "hg_v1_2ca39aa1642340c8b18efd00852fc59c1a3769a77758bc9d1f096d891dc041e1",
+  "prefix": "hg_v1_",
+  "created_at": "2026-05-15T11:03:56.040079865+03:00",
+  "expires_at": "2026-06-14T11:03:56.040076078+03:00",
+  "revoked": false
+}
+```
+
+``` bash
+API_KEY="hg_v1_2ca39aa1642340c8b18efd00852fc59c1a3769a77758bc9d1f096d891dc041e1"
+```
+
+## Проверка работы API ключа вместо JWT токена
+
+``` bash
+curl -X GET http://localhost:8080/api/me \
+  -H "X-API-Key: $API_KEY"
+```
+
+``` json
+{
+  "id": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed",
+  "email": "test@example.com",
+  "name": "Test User",
+  "avatar_url": null,
+  "role": "user",
+  "is_verified": false,
+  "oauth_provider": null,
+  "created_at": "2026-05-15T09:52:18.114952Z",
+  "updated_at": "2026-05-15T10:24:44.098394Z",
+  "last_login": "2026-05-15T10:24:44.098394Z"
+}
+```
+
+# Загрузка файла
+
+``` bash
+echo "This is a test file for HumanGuard" > ~/projects/temp/testhg.txt
+```
+
+``` bash
+curl -X POST http://localhost:8080/api/files/upload \
+  -H "X-API-Key: $API_KEY" \
+  -F "file=@/home/serr/projects/temp/testhg.txt"
+```
+
+Ответ
+
+``` json
+{
+  "id": "3a7122cd-172e-4e62-b865-740ab868aebb",
+  "user_id": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed",
+  "name": "9956daf5-e1da-468d-9ac1-8891f465ad54.txt",
+  "original_name": "testhg.txt",
+  "size": 35,
+  "mime_type": "text/plain",
+  "hash": "ef8ec0e48741322ed8c745e127177b59cacf5c2a066c3c2b4a60eb5ae10c8fb1",
+  "path": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed/2026/05/15/9956daf5-e1da-468d-9ac1-8891f465ad54.txt",
+  "created_at": "2026-05-15T11:25:14.963398985+03:00"
+}
 ```
