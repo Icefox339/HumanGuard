@@ -290,8 +290,7 @@ func (h *FileHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"token":     token,
-		"share_url": "http://localhost:8080/api/files/share/" + token,
+		"token": token,
 	})
 }
 

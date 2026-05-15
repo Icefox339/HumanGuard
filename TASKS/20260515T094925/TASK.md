@@ -573,7 +573,9 @@ curl -X GET http://localhost:8080/api/me \
 }
 ```
 
-# Загрузка файла
+# Работа с файлами
+
+## Загрузка файла
 
 ``` bash
 echo "This is a test file for HumanGuard" > ~/projects/temp/testhg.txt
@@ -598,5 +600,39 @@ curl -X POST http://localhost:8080/api/files/upload \
   "hash": "ef8ec0e48741322ed8c745e127177b59cacf5c2a066c3c2b4a60eb5ae10c8fb1",
   "path": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed/2026/05/15/9956daf5-e1da-468d-9ac1-8891f465ad54.txt",
   "created_at": "2026-05-15T11:25:14.963398985+03:00"
+}
+```
+
+## Скачивание файла
+
+``` bash
+curl -X GET http://localhost:8080/api/files/$FILE_ID \
+  -H "X-API-Key: $API_KEY" \
+  --output downloaded.txt
+```
+
+Проверка
+
+``` bash
+~/projects/HumanGuard/backend
+[serr@lap]-> cat downloaded.txt
+This is a test file for HumanGuard
+```
+
+## Создание публичной ссылки на файл
+
+``` bash
+curl -X POST http://localhost:8080/api/files/share \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_id": "'$FILE_ID'",
+    "expires_in_hours": 48
+  }'
+```
+
+``` json
+{
+  "token": "769656badcc13aeb09a80ea68876a3efae9c8fff995c0d672114034a8d92deb1"
 }
 ```
