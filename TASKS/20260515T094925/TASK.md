@@ -722,3 +722,142 @@ curl -X GET http://localhost:8080/api/files \
   "original_name": "testhg.txt"
 }
 ```
+
+## WebSocket прогресс загрузки
+
+Создаю большой файл
+
+``` bash
+dd if=/dev/zero of=/home/serr/projects/temp/10mb.bin bs=1M count=10
+```
+
+В одном терминале смотрю прогрес используя *wscat* (поменял на время
+код чтобы ожидалось подключение)
+
+``` bash
+npx wscat -c "ws://localhost:8080/api/files/upload/progress?upload_id=test123" \
+  -H "X-API-Key: $API_KEY"
+```
+
+В другом терминале запустил
+
+``` bash
+curl -X POST "http://localhost:8080/api/files/upload?upload_id=test123" \
+  -H "X-API-Key: $API_KEY" \
+  -F "file=@/home/serr/projects/temp/10mb.txt"
+```
+
+В терминале с *wscat*
+
+``` bash
+Connected (press CTRL+C to quit)
+< {"upload_id":"test123","bytes_done":0,"total_bytes":10485972,"percentage":0,"completed":false}
+
+< {"upload_id":"test123","bytes_done":10485760,"total_bytes":10485958,"percentage":100,"completed":true}
+
+Disconnected (code: 1006, reason: "")
+```
+
+В терминале где запускал скачивание
+
+``` json
+{
+  "id": "47153ada-0ac9-4632-ac9a-bbd1c681f609",
+  "user_id": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed",
+  "name": "7e1ff277-a6b0-4f99-9034-757b8628cf87.txt",
+  "original_name": "10mb.txt",
+  "size": 10485760,
+  "mime_type": "text/plain",
+  "hash": "e5b844cc57f57094ea4585e235f36c78c1cd222262bb89d53c94dcb4d6b3e55d",
+  "path": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed/2026/05/15/7e1ff277-a6b0-4f99-9034-757b8628cf87.txt",
+  "created_at": "2026-05-15T12:46:23.829292118+03:00"
+}
+```
+
+## MinIO
+
+До этого все в качестве хранилища файлов использовалась просто папка,
+но также можно использовать объектное хранилище *MinIO*, для этого надо
+запустить его и перезапустить сервер с правильными переменными
+окружения
+
+### Запуск MinIO
+
+``` bash
+docker run -d \
+  --name minio \
+  -p 9000:9000 \
+  -p 9001:9001 \
+  -e "MINIO_ROOT_USER=minioadmin" \
+  -e "MINIO_ROOT_PASSWORD=minioadmin123" \
+  minio/minio server /data --console-address ":9001"
+```
+
+Браузерный интерфейс: http://localhost:9001
+Логин и пароль: minioadmin / minioadmin123
+
+Установка переменных окружения
+
+``` bash
+export STORAGE_TYPE=minio
+export MINIO_ENDPOINT=localhost:9000
+export MINIO_ACCESS_KEY=minioadmin
+export MINIO_SECRET_KEY=minioadmin123
+export MINIO_BUCKET=humanguard
+export MINIO_USE_SSL=false
+```
+
+Далее при запуске сервера будет написано что подключено к хранилищу *MinIO*
+
+``` bash
+~/projects/HumanGuard/backend
+[serr@lap]-> go run cmd/server/main.go
+2026/05/15 13:02:25 Connected to database
+2026/05/15 13:02:25 Database ping successful
+2026/05/15 13:02:25 Created bucket: humanguard
+2026/05/15 13:02:25 Connected to MinIO storage
+2026/05/15 13:02:25 Server starting on http://localhost:8080
+```
+
+Загружаю файл
+
+``` bash
+curl -X POST http://localhost:8080/api/files/upload \
+  -H "X-API-Key: $API_KEY" \
+  -F "file=@/home/serr/projects/temp/testhg.txt"
+```
+
+Ответ
+
+``` json
+{
+  "id": "4074c594-465c-4335-90b7-f8c7ebb91395",
+  "user_id": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed",
+  "name": "1a913627-a0c1-4a4d-9eef-93fb580ef889.txt",
+  "original_name": "testhg.txt",
+  "size": 35,
+  "mime_type": "text/plain",
+  "hash": "ef8ec0e48741322ed8c745e127177b59cacf5c2a066c3c2b4a60eb5ae10c8fb1",
+  "path": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed/2026/05/15/1a913627-a0c1-4a4d-9eef-93fb580ef889.txt",
+  "created_at": "2026-05-15T13:03:53.006641023+03:00"
+}
+```
+
+Далее через интерфейс в браузере можно скачать либо через API
+
+``` bash
+FILE_ID="4074c594-465c-4335-90b7-f8c7ebb91395"
+curl -X GET http://localhost:8080/api/files/$FILE_ID \
+  -H "X-API-Key: $API_KEY" \
+  --output downloaded-from-minio.txt
+```
+
+Проверка
+
+``` bash
+~/projects/HumanGuard/backend
+[serr@lap]-> cat downloaded-from-minio.txt
+This is a test file for HumanGuard
+```
+
+ну и все методы работают как и работали для работы с файлами
