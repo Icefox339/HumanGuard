@@ -636,3 +636,89 @@ curl -X POST http://localhost:8080/api/files/share \
   "token": "769656badcc13aeb09a80ea68876a3efae9c8fff995c0d672114034a8d92deb1"
 }
 ```
+
+Сохраняю в переменную
+
+``` bash
+SHARE_TOKEN="769656badcc13aeb09a80ea68876a3efae9c8fff995c0d672114034a8d92deb1"
+```
+
+## Скачивание файла по публичной ссылке
+
+``` bash
+curl -X GET http://localhost:8080/api/files/share/$SHARE_TOKEN \
+  --output public_downloaded.txt
+```
+
+Проверка
+
+```
+~/projects/HumanGuard/backend
+[serr@lap]-> cat public_downloaded.txt
+This is a test file for HumanGuard
+```
+
+## Список файлов юзера
+
+``` bash
+curl -X GET http://localhost:8080/api/files \
+  -H "X-API-Key: $API_KEY"
+```
+
+Ответ
+
+``` json
+[
+  {
+    "id": "d4ca1292-c927-454a-9d78-af39350455b3",
+    "user_id": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed",
+    "name": "4804d9dc-77b8-4b64-a018-0d0a4eb3c9ad.txt",
+    "original_name": "testhg.txt",
+    "size": 35,
+    "mime_type": "text/plain",
+    "hash": "ef8ec0e48741322ed8c745e127177b59cacf5c2a066c3c2b4a60eb5ae10c8fb1",
+    "path": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed/2026/05/15/4804d9dc-77b8-4b64-a018-0d0a4eb3c9ad.txt",
+    "created_at": "2026-05-15T11:31:07.922983Z"
+  },
+  {
+    "id": "35e18ff8-e392-4475-92f6-b411f58b8368",
+    "user_id": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed",
+    "name": "edfc71ad-04c8-4d68-b96b-1ac5f6f56903.txt",
+    "original_name": "testhg.txt",
+    "size": 35,
+    "mime_type": "text/plain",
+    "hash": "ef8ec0e48741322ed8c745e127177b59cacf5c2a066c3c2b4a60eb5ae10c8fb1",
+    "path": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed/2026/05/15/edfc71ad-04c8-4d68-b96b-1ac5f6f56903.txt",
+    "created_at": "2026-05-15T11:28:17.060076Z"
+  },
+  {
+    "id": "3a7122cd-172e-4e62-b865-740ab868aebb",
+    "user_id": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed",
+    "name": "9956daf5-e1da-468d-9ac1-8891f465ad54.txt",
+    "original_name": "testhg.txt",
+    "size": 35,
+    "mime_type": "text/plain",
+    "hash": "ef8ec0e48741322ed8c745e127177b59cacf5c2a066c3c2b4a60eb5ae10c8fb1",
+    "path": "283a3b1a-fa2e-4ba7-8c1c-af67a76e29ed/2026/05/15/9956daf5-e1da-468d-9ac1-8891f465ad54.txt",
+    "created_at": "2026-05-15T11:25:14.963399Z"
+  }
+]
+```
+
+## Удаление файла по ид
+
+``` bash
+~/projects/HumanGuard/backend
+[serr@lap]-> curl -X DELETE http://localhost:8080/api/files/$FILE_ID \
+  -H "X-API-Key: $API_KEY"
+```
+
+Ответ
+
+``` json
+{
+  "file_id": "d4ca1292-c927-454a-9d78-af39350455b3",
+  "message": "file deleted successfully",
+  "original_name": "testhg.txt"
+}
+```

@@ -222,14 +222,20 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	fileRecord, err := h.store.GetFile(r.Context(), fileID)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
 	}
+
+	originalName := fileRecord.OriginalName
 
 	h.s3.Delete(fileRecord.Path)
 	h.store.DeleteFile(r.Context(), fileID)
 
-	w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusOK, map[string]string{
+		"message":       "file deleted successfully",
+		"file_id":       fileID,
+		"original_name": originalName,
+	})
 }
 
 func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
