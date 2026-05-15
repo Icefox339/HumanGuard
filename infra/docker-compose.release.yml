@@ -46,6 +46,18 @@ services:
     networks:
       - backend_network
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.1
+    container_name: humanguard-keycloak
+    command: start-dev
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      - backend_network
+
   nginx:
     image: nginx:alpine
     environment:
@@ -82,6 +94,7 @@ services:
 volumes:
   pg_data:
   minio_data:
+  keycloak_data:
   letsencrypt:
   certbot_www:
 

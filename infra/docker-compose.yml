@@ -31,12 +31,28 @@ services:
     networks:
       - backend_network
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.1
+    container_name: humanguard-keycloak
+    command: start-dev
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+    ports:
+      - "8081:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      - backend_network
+
   backend:
     build: ../backend
     container_name: humanguard-backend
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       - MINIO_ENDPOINT=minio:9000
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+      - KEYCLOAK_URL=${KEYCLOAK_URL}
     ports:
       - "8080:8080"
     networks:
@@ -55,6 +71,7 @@ services:
 volumes:
   pg_data:
   minio_data:
+  keycloak_data:
 
 networks:
   backend_network:
