@@ -200,7 +200,7 @@ func (h *FileHandler) Download(w http.ResponseWriter, r *http.Request) {
 	fileID := r.PathValue("id")
 
 	fileRecord, err := h.store.GetFile(r.Context(), fileID)
-	if err != nil {
+	if err != nil || fileRecord.UserID != auth.GetUserID(r.Context()) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -221,7 +221,7 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	fileID := r.PathValue("id")
 
 	fileRecord, err := h.store.GetFile(r.Context(), fileID)
-	if err != nil {
+	if err != nil || fileRecord.UserID != auth.GetUserID(r.Context()) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
 	}
@@ -272,6 +272,12 @@ func (h *FileHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r.Context())
 	if userID == "" {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	fileRecord, err := h.store.GetFile(r.Context(), req.FileID)
+	if err != nil || fileRecord.UserID != userID {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
 	}
 
