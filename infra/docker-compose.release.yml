@@ -17,11 +17,24 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio
+    container_name: humanguard-minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - backend_network
+
   backend:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/humanguard-backend:${RELEASE_VERSION}
     container_name: humanguard-backend
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      - MINIO_ENDPOINT=minio:9000
     networks:
       - backend_network
     depends_on:
@@ -68,6 +81,7 @@ services:
 
 volumes:
   pg_data:
+  minio_data:
   letsencrypt:
   certbot_www:
 
