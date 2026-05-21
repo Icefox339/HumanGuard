@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { applyTheme, getStoredTheme, persistTheme, type ThemeMode } from '@/lib/theme';
+import { useAuthStore } from '@/app/store/auth-store';
+import { BehaviorDebugPanel } from '@/features/sessions/behavior-debug-panel';
 
 const themeLabels: Record<ThemeMode, string> = {
   default: 'Стандарт',
@@ -9,6 +11,7 @@ const themeLabels: Record<ThemeMode, string> = {
 
 export const DashboardPage = () => {
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
+  const user = useAuthStore((s) => s.user);
 
   const selectTheme = (nextTheme: ThemeMode) => {
     setTheme(nextTheme);
@@ -37,6 +40,8 @@ export const DashboardPage = () => {
       <div className="theme-card max-w-xl rounded-2xl p-5">
         <p className="text-sm font-medium text-[rgb(var(--text-secondary))]">Текущая тема: {themeLabels[theme]}.</p>
       </div>
+
+      {user?.role === 'admin' ? <BehaviorDebugPanel /> : null}
     </section>
   );
 };
