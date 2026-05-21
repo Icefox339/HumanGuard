@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { getCurrentUser } from '@/api/auth';
-import { getUsers, UserDetails } from '@/api/users';
+import { getUsers, updateUser, UserDetails } from '@/api/users';
 
 const getError = (error: unknown) => {
   const err = error as AxiosError<{ error?: string }>;
@@ -14,6 +14,7 @@ const getError = (error: unknown) => {
 export const UsersTable = () => {
   const [users, setUsers] = useState<UserDetails[]>([]);
   const [loading, setLoading] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadUsers = async () => {
@@ -58,6 +59,21 @@ export const UsersTable = () => {
     void loadUsers();
   }, []);
 
+  const promoteToAdmin = async (user: UserDetails) => {
+    setUpdatingUserId(user.id);
+    setError(null);
+
+    try {
+      await updateUser(user.id, { role: 'admin' });
+      setUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, role: 'admin' } : item)));
+    } catch (e) {
+      const err = getError(e);
+      setError(`Не удалось назначить пользователя администратором: ${err.message}`);
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   return (
     <section className="theme-card space-y-4 rounded-2xl border border-[rgb(var(--border))] p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -86,6 +102,7 @@ export const UsersTable = () => {
                 <th className="px-3 py-2">Роль</th>
                 <th className="px-3 py-2">Создан</th>
                 <th className="px-3 py-2">Последний вход</th>
+                <th className="px-3 py-2">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -99,6 +116,19 @@ export const UsersTable = () => {
                   </td>
                   <td className="px-3 py-2">{user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
                   <td className="px-3 py-2">{user.last_login ? new Date(user.last_login).toLocaleString() : '—'}</td>
+                  <td className="px-3 py-2">
+                    {user.role === 'admin' ? (
+                      <span className="text-xs text-[rgb(var(--text-secondary))]">Уже админ</span>
+                    ) : (
+                      <button
+                        className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))] disabled:opacity-60"
+                        disabled={updatingUserId === user.id}
+                        onClick={() => void promoteToAdmin(user)}
+                      >
+                        {updatingUserId === user.id ? 'Назначаем...' : 'Сделать админом'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
