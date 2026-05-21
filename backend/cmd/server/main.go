@@ -169,9 +169,40 @@ func waitForShutdown(server *http.Server) {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
+		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(lrw, r)
+		duration := time.Since(start)
+
+		log.Printf(
+			"[HTTP DEBUG] method=%s path=%s query=%q status=%d duration=%s bytes=%d remote=%s ua=%q content_length=%d",
+			r.Method,
+			r.URL.Path,
+			r.URL.RawQuery,
+			lrw.statusCode,
+			duration,
+			lrw.bytesWritten,
+			r.RemoteAddr,
+			r.UserAgent(),
+			r.ContentLength,
+		)
 	})
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode   int
+	bytesWritten int
+}
+
+func (w *loggingResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *loggingResponseWriter) Write(data []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(data)
+	w.bytesWritten += n
+	return n, err
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

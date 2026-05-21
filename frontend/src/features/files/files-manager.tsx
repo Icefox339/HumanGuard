@@ -3,6 +3,8 @@ import { AxiosError } from 'axios';
 import { API_URL } from '@/lib/constants';
 import { getFiles, ManagedFile, uploadFile } from '@/api/files';
 
+const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024 * 1024; // 5 GiB
+
 const formatBytes = (bytes: number) => {
   if (bytes === 0) {
     return '0 B';
@@ -46,6 +48,13 @@ const buildErrorDetails = (
 
 const getDownloadUrl = (file: ManagedFile) => `${API_URL}/api/files/${file.id}`;
 
+const mapUploadErrorToMessage = (details: ErrorDetails) => {
+  if (details.status === 413 || details.backendError === 'file exceeds maximum size') {
+    return `Файл слишком большой (максимум ${formatBytes(MAX_UPLOAD_SIZE_BYTES)}). Попробуйте выбрать другой файл.`;
+  }
+  return details.message;
+};
+
 export const FilesManager = () => {
   const [files, setFiles] = useState<ManagedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -77,7 +86,23 @@ export const FilesManager = () => {
   }, []);
 
   const onChooseFile = (event: ChangeEvent<HTMLInputElement>) => {
-    setSelectedFile(event.target.files?.[0] ?? null);
+    const file = event.target.files?.[0] ?? null;
+
+    if (file && file.size > MAX_UPLOAD_SIZE_BYTES) {
+      setSelectedFile(null);
+      setUploadProgress(0);
+      setError(`Файл слишком большой (максимум ${formatBytes(MAX_UPLOAD_SIZE_BYTES)}). Попробуйте выбрать другой файл.`);
+      setErrorDetails({
+        operation: 'upload',
+        message: 'file exceeds maximum size (client validation)',
+        fileName: file.name,
+        fileSize: file.size
+      });
+      event.target.value = '';
+      return;
+    }
+
+    setSelectedFile(file);
     setUploadProgress(0);
     setError(null);
     setErrorDetails(null);
@@ -98,9 +123,10 @@ export const FilesManager = () => {
       const uploaded = await uploadFile(selectedFile, setUploadProgress);
       setFiles((prev) => [uploaded, ...prev]);
       setSelectedFile(null);
+      setUploadProgress(0);
     } catch (e) {
       const details = buildErrorDetails('upload', e, selectedFile);
-      setError(details.message);
+      setError(mapUploadErrorToMessage(details));
       setErrorDetails(details);
       console.error('[FilesManager] upload failed', details, e);
     } finally {

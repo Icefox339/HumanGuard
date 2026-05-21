@@ -26,6 +26,8 @@ var (
 	errUnsupportedType = errors.New("unsupported file type")
 )
 
+const maxUploadSize = 5 << 30 // 5 GiB
+
 var allowedTypes = map[string]bool{
 	"image/jpeg":      true,
 	"image/png":       true,
@@ -66,7 +68,7 @@ func NewFileHandler(store storage.Storage, s3 storage.S3Client) *FileHandler {
 }
 
 func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 5<<30)
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
 	userID := auth.GetUserID(r.Context())
 	if userID == "" {
@@ -79,9 +81,17 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "content-length required"})
 		return
 	}
+	if contentLength > maxUploadSize {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": errFileTooLarge.Error()})
+		return
+	}
 
 	mr, err := r.MultipartReader()
 	if err != nil {
+		if isRequestTooLarge(err) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": errFileTooLarge.Error()})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid multipart request"})
 		return
 	}
@@ -103,6 +113,10 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
+			if isRequestTooLarge(err) {
+				writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": errFileTooLarge.Error()})
+				return
+			}
 			return
 		}
 
@@ -137,7 +151,11 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 						}
 						h.mu.Unlock()
 					}
+					if readErr == io.EOF {
+						break
+					}
 					if readErr != nil {
+						_ = pw.CloseWithError(readErr)
 						break
 					}
 				}
@@ -146,6 +164,10 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			teeReader := io.TeeReader(pr, hasher)
 			size, err := h.s3.Save(path, teeReader)
 			if err != nil {
+				if isRequestTooLarge(err) {
+					writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": errFileTooLarge.Error()})
+					return
+				}
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save file"})
 				return
 			}
@@ -347,4 +369,9 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
+}
+
+func isRequestTooLarge(err error) bool {
+	var maxBytesErr *http.MaxBytesError
+	return errors.Is(err, errFileTooLarge) || errors.As(err, &maxBytesErr)
 }
