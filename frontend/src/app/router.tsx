@@ -18,6 +18,7 @@ import { SiteStatsPage } from '@/pages/app/site-stats-page';
 import { NotFoundPage } from '@/pages/app/not-found-page';
 import { UsersPage } from '@/pages/admin/users-page';
 import { RouteErrorPage } from '@/pages/app/route-error-page';
+import { ApiKeysPage } from '@/pages/app/api-keys-page';
 
 export const router = createBrowserRouter([
   {
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'files', element: <FilesPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'api-keys', element: <ApiKeysPage /> },
       { path: 'sites', element: <SitesPage /> },
       { path: 'sites/new', element: <SiteCreatePage /> },
       { path: 'sites/:siteId', element: <SiteDetailsPage /> },

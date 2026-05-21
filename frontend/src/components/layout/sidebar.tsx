@@ -5,6 +5,7 @@ const links = [
   ['Sites', '/sites'],
   ['Files', '/files'],
   ['Profile', '/profile'],
+  ['API Keys', '/api-keys'],
   ['Users', '/admin/users']
 ];
 
