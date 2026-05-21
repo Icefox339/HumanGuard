@@ -13,3 +13,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status as number | undefined;
+    if (status === 401) {
+      useAuthStore.getState().clearSession();
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth/')) {
+        window.location.assign('/auth/login');
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);

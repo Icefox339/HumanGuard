@@ -9,17 +9,28 @@ export type ManagedFile = {
   created_at?: string;
 };
 
+export type CreateFileSharePayload = {
+  file_id: string;
+  expires_in_hours?: number;
+};
+
+export type CreateFileShareResponse = {
+  token: string;
+  share_url: string;
+};
+
 export const getFiles = () => api.get<ManagedFile[]>('/files').then(({ data }) => data);
 
 export const uploadFile = (
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  uploadId?: string
 ) => {
   const formData = new FormData();
   formData.append('file', file);
 
   return api
-    .post<ManagedFile>('/files/upload', formData, {
+    .post<ManagedFile>(`/files/upload${uploadId ? `?upload_id=${encodeURIComponent(uploadId)}` : ''}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (event) => {
         if (!event.total || !onProgress) {
@@ -32,3 +43,6 @@ export const uploadFile = (
     })
     .then(({ data }) => data);
 };
+
+export const createFileShare = (payload: CreateFileSharePayload) =>
+  api.post<CreateFileShareResponse>('/files/share', payload).then(({ data }) => data);

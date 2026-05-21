@@ -19,7 +19,7 @@ export const LoginForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [apiError, setApiError] = useState<string | null>(null);
-  const { loginMutation } = useAuth();
+  const { loginMutation, debugAdmin } = useAuth();
   const {
     register,
     handleSubmit,
@@ -51,6 +51,11 @@ export const LoginForm = () => {
     >
       <h1 className="text-2xl font-semibold text-[rgb(var(--text-primary))]">Вход</h1>
       {registrationHint && <p className="rounded-lg bg-emerald-100/80 p-2 text-sm text-emerald-700">{registrationHint}</p>}
+      {debugAdmin && (
+        <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700">
+          Debug admin (dev): <span className="font-semibold">{debugAdmin.email}</span> / <span className="font-semibold">{debugAdmin.password}</span>
+        </p>
+      )}
 
       <div className="space-y-1.5">
         <input placeholder="Email" className="auth-input w-full rounded-lg px-3 py-2" {...register('email')} />
