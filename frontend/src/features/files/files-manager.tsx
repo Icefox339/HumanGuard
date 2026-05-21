@@ -1,7 +1,7 @@
 import { ChangeEvent, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { API_URL } from '@/lib/constants';
-import { getFiles, ManagedFile, uploadFile } from '@/api/files';
+import { getFiles, ManagedFile, openUploadProgressSocket, uploadFile } from '@/api/files';
 
 const formatBytes = (bytes: number) => {
   if (bytes === 0) {
@@ -45,6 +45,7 @@ const buildErrorDetails = (
 };
 
 const getDownloadUrl = (file: ManagedFile) => `${API_URL}/api/files/${file.id}`;
+const createUploadId = () => crypto.randomUUID();
 
 export const FilesManager = () => {
   const [files, setFiles] = useState<ManagedFile[]>([]);
@@ -94,8 +95,23 @@ export const FilesManager = () => {
     setUploading(true);
     setUploadProgress(0);
 
+    let progressSocket: WebSocket | null = null;
+
     try {
-      const uploaded = await uploadFile(selectedFile, setUploadProgress);
+      const uploadId = createUploadId();
+      let wsProgressReceived = false;
+      progressSocket = openUploadProgressSocket(uploadId, (payload) => {
+        wsProgressReceived = true;
+        setUploadProgress(payload.percentage);
+      });
+
+      const uploaded = await uploadFile(selectedFile, uploadId, (progress) => {
+        if (!wsProgressReceived) {
+          setUploadProgress(progress);
+        }
+      });
+
+      setUploadProgress(100);
       setFiles((prev) => [uploaded, ...prev]);
       setSelectedFile(null);
     } catch (e) {
@@ -104,6 +120,9 @@ export const FilesManager = () => {
       setErrorDetails(details);
       console.error('[FilesManager] upload failed', details, e);
     } finally {
+      if (progressSocket && progressSocket.readyState === WebSocket.OPEN) {
+        progressSocket.close();
+      }
       setUploading(false);
     }
   };
