@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json" 
 	"crypto/rand"
 	"encoding/hex"
 	"github.com/google/uuid"
@@ -11,13 +12,13 @@ import (
 
 type Storage interface {
 	UserStorage
-	SessionStorage
+	MemorySessionStorage
 	FileStorage
 	ShareStorage
 	SiteStorage
 	SettingsStorage
 	BlacklistStorage
-	AccessLogStorage
+	APIKeyStorage 
 
 	Close() error
 	Ping() error
@@ -44,21 +45,6 @@ type User struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 	LastLogin     *time.Time `json:"last_login"`
 }
-type Session struct {
-	ID           string    `json:"id"`
-	SiteID       *string   `json:"site_id"`
-	IP           string    `json:"ip"`
-	UserAgent    string    `json:"user_agent"`
-	Device       string    `json:"device"`
-	Location     string    `json:"location"`
-	IsActive     bool      `json:"is_active"`
-	RiskScore    int       `json:"risk_score"`
-	IsBlocked    bool      `json:"is_blocked"`
-	CaptchaShown bool      `json:"captcha_shown"`
-	CreatedAt    time.Time `json:"created_at"`
-	LastActivity time.Time `json:"last_activity"`
-	ExpiresAt    time.Time `json:"expires_at"`
-}
 
 type ModuleSettings struct {
 	Collector CollectorSettings `json:"collector"`
@@ -75,13 +61,24 @@ type CollectorSettings struct {
 	FingerprintEnabled bool `json:"fingerprint_enabled"`
 }
 
-type AnalyzerSettings struct {
-	Enabled           bool              `json:"enabled"`
-	RateLimiting      bool              `json:"rate_limiting"`
-	PatternAnalysis   bool              `json:"pattern_analysis"`
-	HeadlessDetection bool              `json:"headless_detection"`
-	Thresholds        AnalyzerThreshold `json:"thresholds"`
+type WeightsSettings struct {
+    IPReputation      float64 `json:"ip_reputation"`
+    Headless          float64 `json:"headless"`
+    RateLimit         float64 `json:"rate_limit"`
+    BehaviorAnomaly   float64 `json:"behavior_anomaly"`
+    FingerprintChange float64 `json:"fingerprint_change"`
 }
+
+type AnalyzerSettings struct {
+    Enabled           bool              `json:"enabled"`
+    RateLimiting      bool              `json:"rate_limiting"`
+    PatternAnalysis   bool              `json:"pattern_analysis"`
+    HeadlessDetection bool              `json:"headless_detection"`
+    Thresholds        AnalyzerThreshold `json:"thresholds"`
+    Weights           WeightsSettings   `json:"weights,omitempty"`
+}
+
+
 
 type AnalyzerThreshold struct {
 	Low    int `json:"low"`
@@ -119,19 +116,12 @@ type BlacklistEntry struct {
 	ExpiresAt *time.Time `json:"expires_at"`
 }
 
-type AccessLog struct {
-	ID         string    `json:"id"`
-	SessionID  string    `json:"session_id"`
-	SiteID     string    `json:"site_id"`
-	IP         string    `json:"ip"`
-	Path       string    `json:"path"`
-	Method     string    `json:"method"`
-	UserAgent  string    `json:"user_agent"`
-	Referer    string    `json:"referer"`
-	StatusCode int       `json:"status_code"`
-	RiskScore  int       `json:"risk_score"`
-	Action     string    `json:"action"`
-	CreatedAt  time.Time `json:"created_at"`
+type BehaviorEvent struct {
+    ID         string          `json:"id"`
+    SessionID  string          `json:"session_id"`
+    EventType  string          `json:"event_type"`
+    EventData  json.RawMessage `json:"event_data"`
+    RecordedAt time.Time       `json:"recorded_at"`
 }
 
 type LogStats struct {
@@ -164,6 +154,37 @@ type ShareRecord struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type APIKey struct {
+    ID         string     `json:"id"`
+    UserID     string     `json:"user_id"`
+    Name       string     `json:"name"`
+    KeyHash    string     `json:"-"`
+    Prefix     string     `json:"prefix"`
+    LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+    ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+    CreatedAt  time.Time  `json:"created_at"`
+    Revoked    bool       `json:"revoked"`
+    CreatedBy  *string    `json:"created_by,omitempty"`
+}
+
+type SessionStats struct {
+    Total     int64   `json:"total"`
+    Active    int64   `json:"active"`
+    Blocked   int64   `json:"blocked"`
+    AvgRisk   float64 `json:"avg_risk"`
+    UniqueIPs int64   `json:"unique_ips"`
+}
+
+type APIKeyStorage interface {
+    CreateAPIKey(ctx context.Context, key *APIKey) error
+    GetAPIKeyByHash(ctx context.Context, keyHash string) (*APIKey, error)
+    GetAPIKeyByID(ctx context.Context, id string) (*APIKey, error)
+    ListAPIKeys(ctx context.Context, userID string) ([]*APIKey, error)
+    RevokeAPIKey(ctx context.Context, id string) error
+    UpdateAPIKeyLastUsed(ctx context.Context, id string) error
+    DeleteAPIKey(ctx context.Context, id string) error
+}
+
 type FileStorage interface {
 	CreateFile(ctx context.Context, file *FileRecord) error
 	GetFile(ctx context.Context, id string) (*FileRecord, error)
@@ -174,12 +195,6 @@ type FileStorage interface {
 type ShareStorage interface {
 	CreateShare(ctx context.Context, share *ShareRecord) (string, error)
 	GetFileByShareToken(ctx context.Context, token string) (*FileRecord, error)
-}
-type AccessLogStorage interface {
-	LogAccess(ctx context.Context, log *AccessLog) error
-	GetAccessLogs(ctx context.Context, siteID string) ([]*AccessLog, error)
-	GetLogStats(ctx context.Context, siteID string, from, to time.Time) (*LogStats, error)
-	CleanupOldLogs(ctx context.Context, siteID string, before time.Time) (int64, error)
 }
 
 type BlacklistStorage interface {
@@ -204,22 +219,21 @@ type UserStorage interface {
 	CheckEmailExists(ctx context.Context, email string) (bool, error)
 }
 
-type SessionStorage interface {
-	CreateSession(ctx context.Context, session *Session) error
-	GetSession(ctx context.Context, id string) (*Session, error)
-	GetSessionByCookie(ctx context.Context, cookie string) (*Session, error)
-	UpdateSession(ctx context.Context, session *Session) error
-	UpdateSessionActivity(ctx context.Context, id string) error
-	DeactivateSession(ctx context.Context, id string) error
-
-	GetActiveSessionsBySite(ctx context.Context, siteID string, limit int) ([]*Session, error)
-	GetSuspiciousSessions(ctx context.Context, siteID string, minRisk int) ([]*Session, error)
-	BlockSession(ctx context.Context, id string) error
-	UnblockSession(ctx context.Context, id string) error
-	UpdateRiskScore(ctx context.Context, id string, score int) error
-	MarkCaptchaShown(ctx context.Context, id string) error
-	CleanupExpiredSessions(ctx context.Context) (int64, error)
-	GetSessionStats(ctx context.Context, siteID string) (*SessionStats, error)
+type MemorySessionStorage interface {
+    CreateSession(ctx context.Context, session *ActiveSession) error
+    GetSession(ctx context.Context, id string) (*ActiveSession, error)
+    UpdateSessionActivity(ctx context.Context, id string) error
+    DeactivateSession(ctx context.Context, id string) error
+    BlockSession(ctx context.Context, id string) error
+    UnblockSession(ctx context.Context, id string) error
+    UpdateRiskScore(ctx context.Context, id string, score int) error
+    MarkCaptchaShown(ctx context.Context, id string) error
+    UpdateSessionMetrics(ctx context.Context, id string, metrics map[string]interface{}) error
+    GetSessionMetrics(ctx context.Context, id string) (map[string]interface{}, error)
+    GetActiveSessionsBySite(ctx context.Context, siteID string, limit int) ([]*ActiveSession, error)
+    GetSuspiciousSessions(ctx context.Context, siteID string, minRisk int) ([]*ActiveSession, error)
+    GetSessionStats(ctx context.Context, siteID string) (*SessionStats, error)
+    CleanupExpiredSessions(ctx context.Context) (int64, error)
 }
 
 type SiteStorage interface {
@@ -254,4 +268,14 @@ func isUniqueViolation(err error) bool {
 		return pqErr.Code == "23505"
 	}
 	return false
+}
+
+func DefaultWeights() WeightsSettings {
+    return WeightsSettings{
+        IPReputation:      35.0,
+        Headless:          25.0,
+        RateLimit:         20.0,
+        BehaviorAnomaly:   15.0,
+        FingerprintChange: 5.0,
+    }
 }

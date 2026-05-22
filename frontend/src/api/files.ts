@@ -1,4 +1,5 @@
 import { api } from '@/api/client';
+import { API_URL } from '@/lib/constants';
 
 export type ManagedFile = {
   id: string;
@@ -13,22 +14,53 @@ export const getFiles = () => api.get<ManagedFile[]>('/files').then(({ data }) =
 
 export const uploadFile = (
   file: File,
+  uploadId: string,
   onProgress?: (progress: number) => void
 ) => {
   const formData = new FormData();
   formData.append('file', file);
 
   return api
-    .post<ManagedFile>('/files/upload', formData, {
+    .post<ManagedFile>(`/files/upload?upload_id=${encodeURIComponent(uploadId)}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (event) => {
-        if (!event.total || !onProgress) {
-          return;
-        }
-        onProgress(Math.round((event.loaded / event.total) * 100));
-      },
+      onUploadProgress: onProgress
+        ? (event) => {
+            if (!event.total) {
+              return;
+            }
+            onProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        : undefined,
       maxBodyLength: Infinity,
       maxContentLength: Infinity
     })
     .then(({ data }) => data);
+};
+
+export type UploadProgressMessage = {
+  upload_id: string;
+  bytes_done: number;
+  total_bytes: number;
+  percentage: number;
+  completed: boolean;
+};
+
+export const openUploadProgressSocket = (
+  uploadId: string,
+  onMessage: (progress: UploadProgressMessage) => void
+) => {
+  const baseUrl = API_URL.replace(/\/$/, '');
+  const wsBaseUrl = baseUrl.replace(/^http/, 'ws');
+  const ws = new WebSocket(`${wsBaseUrl}/api/files/upload/progress?upload_id=${encodeURIComponent(uploadId)}`);
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data) as UploadProgressMessage;
+      onMessage(data);
+    } catch (error) {
+      console.error('[FilesAPI] invalid websocket payload', error);
+    }
+  };
+
+  return ws;
 };

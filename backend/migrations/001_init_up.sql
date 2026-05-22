@@ -8,25 +8,12 @@ CREATE TABLE users (
     role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
     password_hash VARCHAR(255) NOT NULL,
     is_verified BOOLEAN DEFAULT false,
+    totp_secret VARCHAR(255),
+    oauth_provider VARCHAR(50),
+    oauth_id VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     last_login TIMESTAMP
-);
-
-CREATE TABLE sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    site_id UUID NOT NULL,
-    ip VARCHAR(45) NOT NULL,
-    user_agent TEXT,
-    device VARCHAR(100),
-    location VARCHAR(100),
-    is_active BOOLEAN DEFAULT true,
-    risk_score INTEGER DEFAULT 0 CHECK (risk_score >= 0 AND risk_score <= 100),
-    is_blocked BOOLEAN DEFAULT false,
-    captcha_shown BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT NOW(),
-    last_activity TIMESTAMP DEFAULT NOW(),
-    expires_at TIMESTAMP NOT NULL
 );
 
 CREATE TABLE sites (
@@ -51,33 +38,51 @@ CREATE TABLE blacklist (
     UNIQUE(site_id, ip)
 );
 
-CREATE TABLE access_logs (
+CREATE TABLE files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
-    ip VARCHAR(45) NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    size BIGINT NOT NULL,
+    mime_type VARCHAR(100),
+    hash VARCHAR(64),
     path TEXT NOT NULL,
-    method VARCHAR(10) NOT NULL,
-    user_agent TEXT,
-    referer TEXT,
-    status_code INTEGER,
-    risk_score INTEGER DEFAULT 0,
-    action VARCHAR(20) DEFAULT 'allowed',
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE shares (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    token VARCHAR(64) UNIQUE NOT NULL,
+    shared_by UUID NOT NULL REFERENCES users(id),
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE api_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    key_hash VARCHAR(64) NOT NULL UNIQUE,
+    prefix VARCHAR(20) NOT NULL,
+    last_used_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    revoked BOOLEAN DEFAULT FALSE,
+    created_by UUID REFERENCES users(id)
 );
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_sessions_site_id ON sessions(site_id);
-CREATE INDEX idx_sessions_ip ON sessions(ip);
-CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_id);
 CREATE INDEX idx_sites_user_id ON sites(user_id);
 CREATE INDEX idx_sites_status ON sites(status);
 CREATE INDEX idx_blacklist_site_ip ON blacklist(site_id, ip);
 CREATE INDEX idx_blacklist_expires ON blacklist(expires_at);
-CREATE INDEX idx_access_logs_session_id ON access_logs(session_id);
-CREATE INDEX idx_access_logs_site_id ON access_logs(site_id);
-CREATE INDEX idx_access_logs_created_at ON access_logs(created_at);
+CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
+CREATE INDEX idx_api_keys_expires_at ON api_keys(expires_at);
+CREATE INDEX idx_api_keys_revoked ON api_keys(revoked);
 
 UPDATE sites SET settings = '{
     "collector": {

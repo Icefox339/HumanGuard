@@ -2,9 +2,11 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthLayout } from '@/components/layout/auth-layout';
 import { ProtectedRoute } from '@/components/layout/protected-route';
+import { RoleRoute } from '@/components/layout/role-route';
 import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
 import { TwoFaSetupPage } from '@/pages/auth/twofa-setup-page';
+import { OAuthCallbackPage } from '@/pages/auth/oauth-callback-page';
 import { DashboardPage } from '@/pages/app/dashboard-page';
 import { FilesPage } from '@/pages/app/files-page';
 import { ProfilePage } from '@/pages/app/profile-page';
@@ -18,6 +20,7 @@ import { SiteStatsPage } from '@/pages/app/site-stats-page';
 import { NotFoundPage } from '@/pages/app/not-found-page';
 import { UsersPage } from '@/pages/admin/users-page';
 import { RouteErrorPage } from '@/pages/app/route-error-page';
+import { ApiKeysPage } from '@/pages/app/api-keys-page';
 
 export const router = createBrowserRouter([
   {
@@ -28,6 +31,7 @@ export const router = createBrowserRouter([
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: '2fa-setup', element: <TwoFaSetupPage /> },
+      { path: 'oauth/callback', element: <OAuthCallbackPage /> },
       { path: '*', element: <NotFoundPage /> }
     ]
   },
@@ -44,6 +48,7 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'files', element: <FilesPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'api-keys', element: <ApiKeysPage /> },
       { path: 'sites', element: <SitesPage /> },
       { path: 'sites/new', element: <SiteCreatePage /> },
       { path: 'sites/:siteId', element: <SiteDetailsPage /> },
@@ -51,7 +56,14 @@ export const router = createBrowserRouter([
       { path: 'sites/:siteId/sessions', element: <SiteSessionsPage /> },
       { path: 'sites/:siteId/suspicious', element: <SuspiciousSessionsPage /> },
       { path: 'sites/:siteId/stats', element: <SiteStatsPage /> },
-      { path: 'admin/users', element: <UsersPage /> },
+      {
+        path: 'admin/users',
+        element: (
+          <RoleRoute requiredRole="admin">
+            <UsersPage />
+          </RoleRoute>
+        )
+      },
       { path: '*', element: <NotFoundPage /> }
     ]
   },
