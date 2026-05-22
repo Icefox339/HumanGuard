@@ -13,8 +13,11 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -43,7 +46,51 @@ func connectToDatabase() storage.Storage {
 		log.Fatal("Database ping failed:", err)
 	}
 	log.Println("Database ping successful")
+
+	ensureDefaultAdmin(store)
+
 	return store
+}
+
+func ensureDefaultAdmin(store storage.Storage) {
+	adminEmail := strings.TrimSpace(getEnv("DEFAULT_ADMIN_EMAIL", ""))
+	adminPassword := getEnv("DEFAULT_ADMIN_PASSWORD", "")
+	adminName := strings.TrimSpace(getEnv("DEFAULT_ADMIN_NAME", "System Admin"))
+	if adminEmail == "" || adminPassword == "" {
+		log.Println("Default admin bootstrap skipped: DEFAULT_ADMIN_EMAIL or DEFAULT_ADMIN_PASSWORD is empty")
+		return
+	}
+
+	if len(adminPassword) < 8 {
+		log.Printf("Default admin bootstrap skipped: password for %s is shorter than 8 chars", adminEmail)
+		return
+	}
+
+	ctx := context.Background()
+	if _, err := store.GetUserByEmail(ctx, adminEmail); err == nil {
+		log.Printf("Default admin already exists: %s", adminEmail)
+		return
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Default admin bootstrap failed: password hash error: %v", err)
+		return
+	}
+
+	adminUser := &storage.User{
+		Email:        adminEmail,
+		Name:         adminName,
+		Role:         "admin",
+		PasswordHash: string(passwordHash),
+		IsVerified:   true,
+	}
+	if err := store.CreateUser(ctx, adminUser); err != nil {
+		log.Printf("Default admin bootstrap failed: create user error: %v", err)
+		return
+	}
+
+	log.Printf("Default admin created: %s", adminEmail)
 }
 
 func startHTTPServer(store storage.Storage) *http.Server {
