@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -265,10 +266,21 @@ func (h *UserHandler) KeycloakLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) KeycloakCallback(w http.ResponseWriter, r *http.Request) {
+	stateCookie, err := r.Cookie("oauth_state")
+	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
+		h.redirectOAuthError(w, r, "invalid_state")
+		return
+	}
+
+	if providerError := r.URL.Query().Get("error"); providerError != "" {
+		h.redirectOAuthError(w, r, providerError)
+		return
+	}
+
 	code := r.URL.Query().Get("code")
 	token, err := h.oauth.ExchangeCode(r.Context(), code)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.redirectOAuthError(w, r, "exchange_failed")
 		return
 	}
 
@@ -310,7 +322,13 @@ func (h *UserHandler) redirectOAuthSuccess(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	redirectTo := fmt.Sprintf("%s/auth/oauth/callback?token=%s&user=%s", frontendURL, url.QueryEscape(token), url.QueryEscape(string(encodedUser)))
+	redirectTo := fmt.Sprintf("%s/auth/oauth/callback?token=%s&user=%s", strings.TrimRight(frontendURL, "/"), url.QueryEscape(token), url.QueryEscape(string(encodedUser)))
+	http.Redirect(w, r, redirectTo, http.StatusTemporaryRedirect)
+}
+
+func (h *UserHandler) redirectOAuthError(w http.ResponseWriter, r *http.Request, oauthError string) {
+	frontendURL := getEnvOrDefault("FRONTEND_URL", "http://localhost:5173")
+	redirectTo := fmt.Sprintf("%s/auth/oauth/callback?error=%s", strings.TrimRight(frontendURL, "/"), url.QueryEscape(oauthError))
 	http.Redirect(w, r, redirectTo, http.StatusTemporaryRedirect)
 }
 
