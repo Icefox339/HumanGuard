@@ -149,6 +149,7 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 			Path:     "/",
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
+			Secure:   true,
 		})
 	} else {
 		session, err = h.storage.GetSession(r.Context(), sessionID)

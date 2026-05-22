@@ -312,6 +312,7 @@ func (h *UserHandler) KeycloakLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   600,
 		HttpOnly: true,
+		Secure:   true,
 	})
 	url := h.oauth.GetAuthURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
@@ -570,6 +571,7 @@ func (h *UserHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   600,
 		HttpOnly: true,
+		Secure:   true,
 	})
 	url := h.googleOAuth.GetAuthURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
@@ -627,6 +629,7 @@ func (h *UserHandler) GithubLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   600,
 		HttpOnly: true,
+		Secure:   true,
 	})
 	url := h.githubOAuth.GetAuthURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
