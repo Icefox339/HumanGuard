@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { getCurrentUser } from '@/api/auth';
 import { changeUserPassword, getUsers, updateUser, UserDetails } from '@/api/users';
@@ -22,6 +22,13 @@ export const UsersTable = () => {
   const [sessions, setSessions] = useState<AdminUserSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [deactivatingSessionId, setDeactivatingSessionId] = useState<string | null>(null);
+
+  const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+    reader.readAsDataURL(file);
+  });
 
   const loadUsers = async () => {
     setLoading(true);
@@ -136,6 +143,32 @@ export const UsersTable = () => {
     }
   };
 
+  const onAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>, userId: string) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError(null);
+
+    if (!file.type.startsWith('image/')) {
+      setError('Можно загрузить только изображение для аватара.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Максимальный размер аватарки — 15MB.');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, avatar_url: dataUrl } : u)));
+    } catch (e) {
+      const err = getError(e);
+      setError(err.message);
+    }
+  };
+
   return (
     <section className="theme-card space-y-4 rounded-2xl border border-[rgb(var(--border))] p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -162,7 +195,12 @@ export const UsersTable = () => {
                       {isEditing ? <input className="w-52 rounded border px-2 py-1" value={user.name || ''} onChange={(e) => setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, name: e.target.value } : u))} /> : (user.name || '—')}
                     </td>
                     <td className="px-3 py-2">
-                      {isEditing ? <input className="w-64 rounded border px-2 py-1" value={user.avatar_url || ''} onChange={(e) => setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, avatar_url: e.target.value || null } : u))} /> : (user.avatar_url || '—')}
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <input className="w-64 rounded border px-2 py-1" value={user.avatar_url || ''} onChange={(e) => setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, avatar_url: e.target.value || null } : u))} />
+                          <input type="file" accept="image/*" className="w-64 rounded border px-2 py-1" onChange={(e) => void onAvatarFileChange(e, user.id)} />
+                        </div>
+                      ) : (user.avatar_url || '—')}
                     </td>
                     <td className="px-3 py-2">
                       {isEditing ? (
@@ -173,10 +211,14 @@ export const UsersTable = () => {
                       ) : user.role}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex gap-2">
-                        <input className="w-44 rounded border px-2 py-1" type="password" placeholder="Новый пароль" value={editingUserId === user.id ? passwordDraft : ''} onChange={(e) => setPasswordDraft(e.target.value)} />
-                        <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs" disabled={updatingUserId === user.id} onClick={() => void savePassword(user)}>Сменить</button>
-                      </div>
+                      {isEditing ? (
+                        <div className="flex gap-2">
+                          <input className="w-44 rounded border px-2 py-1" type="password" placeholder="Новый пароль" value={passwordDraft} onChange={(e) => setPasswordDraft(e.target.value)} />
+                          <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs" disabled={updatingUserId === user.id} onClick={() => void savePassword(user)}>Сменить</button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[rgb(var(--text-secondary))]">Нажмите «Редактировать»</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       {isEditing ? (
