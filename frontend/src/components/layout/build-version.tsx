@@ -1,5 +1,22 @@
-export const BuildVersion = () => (
-  <footer className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 px-4 py-2 text-center text-xs text-slate-500 backdrop-blur">
-    Build version: {import.meta.env.VITE_BUILD_VERSION}
-  </footer>
-);
+import { useState } from 'react';
+
+export const BuildVersion = () => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  return (
+    <div className="fixed bottom-3 right-3 z-50 flex items-end gap-2">
+      {isVisible && (
+        <footer className="rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-500 shadow-sm backdrop-blur">
+          Build version: {import.meta.env.VITE_BUILD_VERSION}
+        </footer>
+      )}
+      <button
+        className="interactive-chip rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm"
+        onClick={() => setIsVisible((prev) => !prev)}
+        type="button"
+      >
+        {isVisible ? 'Hide build' : 'Show build'}
+      </button>
+    </div>
+  );
+};
