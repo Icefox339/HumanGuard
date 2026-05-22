@@ -5,7 +5,9 @@ const mainLinks = [
   ['Dashboard', '/dashboard'],
   ['Sites', '/sites'],
   ['Files', '/files'],
-  ['Profile', '/profile']
+  ['Profile', '/profile'],
+  ['API Keys', '/api-keys'],
+  ['Users', '/admin/users']
 ];
 
 export const Sidebar = () => {
