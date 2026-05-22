@@ -195,7 +195,32 @@
 
 Фронтенд доступен на `http://localhost:5173`
 
-#### 6. Проверка работоспособности
+### Алгоритм запуска ПО для отладки с помощью docker compose
+> Для отладки проекта без разворачивания nginx с TLS
+
+#### 1. Настроить .env файлы для отладки в `/frontend/.env` и в `/infra/.env`
+
+`/frontend/.env`:
+```
+VITE_API_URL=http://localhost:8080
+```
+
+#### 2. Поднять сервис в docker compose
+
+```bash
+cd infra
+docker compose up --build --remove-orphans
+```
+
+#### 3. Проверка
+
+Бэкенд доступен на `http://localhost:8080`
+
+Фронтенд доступен на `http://localhost:80`
+
+
+### Руководство по настройке и запуску дистрибутива ПО
+> Документ: `docs/DEPLOY`.
 
     # Health check
     curl http://localhost:8080/health
