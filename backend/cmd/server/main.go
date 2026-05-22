@@ -109,6 +109,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/auth/github/callback", userHandler.GithubCallback)
 	mux.HandleFunc("POST /api/check", visitorSessionHandler.CheckRequest)     // nginx
 	mux.HandleFunc("POST /api/behavior/{id}", behaviorHandler.SubmitBehavior) // JS
+	mux.HandleFunc("GET /api/csrf", middleware.CSRFTokenHandler)
 
 	// Authenticated endpoints (any valid JWT or API key)
 	mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))
@@ -193,6 +194,13 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	handler = corsMiddleware(handler)
 	handler = middleware.CSPMiddleware(handler)
 	handler = middleware.RequestIDMiddleware(handler)
+	handler = middleware.CSRFMiddleware([]string{
+		"/api/login",
+		"/api/users",
+		"/api/check",
+		"/api/behavior/",
+		"/api/auth/",
+	})(handler)
 
 	// Rate limiting rules
 	rules := []middleware.Rule{
@@ -273,10 +281,17 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+	allowedOrigin := getEnv("CORS_ORIGIN", "http://localhost:5173")
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if origin != "" && origin == allowedOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-CSRF-Token")
 		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
