@@ -2,14 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
-	"humanguard/metrics"
-	"humanguard/storage"
 	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
+
+	"humanguard/metrics"
+	"humanguard/storage"
 )
 
 type VisitorSessionHandler struct {
@@ -50,7 +52,10 @@ func (h *VisitorSessionHandler) GetSessionsBySite(w http.ResponseWriter, r *http
 		sessions = []*storage.ActiveSession{}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sessions)
+	if err := json.NewEncoder(w).Encode(sessions); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *VisitorSessionHandler) GetSuspiciousSessions(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +73,10 @@ func (h *VisitorSessionHandler) GetSuspiciousSessions(w http.ResponseWriter, r *
 		sessions = []*storage.ActiveSession{}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sessions)
+	if err := json.NewEncoder(w).Encode(sessions); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *VisitorSessionHandler) GetSessionStats(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +87,10 @@ func (h *VisitorSessionHandler) GetSessionStats(w http.ResponseWriter, r *http.R
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Request) {
