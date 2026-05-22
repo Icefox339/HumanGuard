@@ -9,4 +9,4 @@ scrape_configs:
       
   - job_name: 'humanguard-backend'
     static_configs:
-      - targets: ['humanguard-backend:8000']
+      - targets: ['humanguard-backend:8080']
