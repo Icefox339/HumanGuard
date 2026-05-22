@@ -861,3 +861,67 @@ This is a test file for HumanGuard
 ```
 
 ну и все методы работают как и работали для работы с файлами
+
+# KeyCloak
+
+Запуск
+
+``` bash
+docker run -d \
+  --name keycloak \
+  -p 8081:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  quay.io/keycloak/keycloak:24.0.1 \
+  start-dev
+```
+
+Далее тут http://localhost:8081
+
+- Логин: admin
+- Пароль: admin
+
+по этой ссылке в браузере http://localhost:8080/api/auth/keycloak/login
+
+```
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Nzk1MzUyNzksImlhdCI6MTc3OTQ0ODg3OSwicm9sZSI6InVzZXIiLCJzaWQiOiIyMmJkNzAyMy1jMjgyLTRlMzAtYmQ3NC1jZGFkOThmOWI2MTUiLCJ1c2VyX2lkIjoiNDhjOTFmNDctMmQ4Yy00OWE3LTg4MjItMDdjZGJjZjhmNWNmIn0.0ymu15bhDyOoJZkYLO8hDNekL4IWUAEIEnTELSP-TJg",
+  "user": {
+    "id": "48c91f47-2d8c-49a7-8822-07cdbcf8f5cf",
+    "email": "",
+    "name": "",
+    "avatar_url": null,
+    "role": "user",
+    "is_verified": false,
+    "oauth_provider": "keycloak",
+    "created_at": "2026-05-22T14:21:19.069064191+03:00",
+    "updated_at": "2026-05-22T14:21:19.069064191+03:00",
+    "last_login": null
+  }
+}
+```
+
+проверка эндпоинта с использованием токена, полученного от keycloak
+
+```
+~/projects/HumanGuard/backend
+[serr@lap]-> TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Nzk1MzUyNzksImlhdCI6MTc3OTQ0ODg3OSwicm9sZSI6InVzZXIiLCJzaWQiOiIyMmJkNzAyMy1jMjgyLTRlMzAtYmQ3NC1jZGFkOThmOWI2MTUiLCJ1c2VyX2lkIjoiNDhjOTFmNDctMmQ4Yy00OWE3LTg4MjItMDdjZGJjZjhmNWNmIn0.0ymu15bhDyOoJZkYLO8hDNekL4IWUAEIEnTELSP-TJg"
+~/projects/HumanGuard/backend
+[serr@lap]-> curl -X GET http://localhost:8080/api/me \
+  -H "Authorization: Bearer $TOKEN" | jq '.'
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+100    251 100    251   0      0 101.1k      0                              0
+{
+  "id": "48c91f47-2d8c-49a7-8822-07cdbcf8f5cf",
+  "email": "",
+  "name": "",
+  "avatar_url": null,
+  "role": "user",
+  "is_verified": false,
+  "oauth_provider": "keycloak",
+  "created_at": "2026-05-22T14:21:19.069064Z",
+  "updated_at": "2026-05-22T14:21:19.069064Z",
+  "last_login": null
+}
+```
