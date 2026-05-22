@@ -51,6 +51,9 @@ export const LoginForm = () => {
     >
       <h1 className="text-2xl font-semibold text-[rgb(var(--text-primary))]">Вход</h1>
       {registrationHint && <p className="rounded-lg bg-emerald-100/80 p-2 text-sm text-emerald-700">{registrationHint}</p>}
+      <p className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--bg-main))] p-2 text-xs text-[rgb(var(--text-secondary))]">
+        Debug admin: <b>admin@humanguard.local</b> / <b>Admin123!</b>
+      </p>
 
       <div className="space-y-1.5">
         <input placeholder="Email" className="auth-input w-full rounded-lg px-3 py-2" {...register('email')} />
