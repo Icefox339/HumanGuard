@@ -58,11 +58,11 @@ func (j *JWTService) ValidateToken(tokenString string) (string, string, string, 
 	userID, _ := claims["user_id"].(string)
 	role, _ := claims["role"].(string)
 	sessionID, _ := claims["sid"].(string)
-	
+
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
-	
+
 	return userID, role, sessionID, nil
 }
 
@@ -72,10 +72,13 @@ func NewTOTPService() *TOTPService {
 	return &TOTPService{}
 }
 
-func (t *TOTPService) GenerateSecret() string {
+func (t *TOTPService) GenerateSecret() (string, error) {
 	bytes := make([]byte, 20)
-	rand.Read(bytes)
-	return base32.StdEncoding.EncodeToString(bytes)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+	return base32.StdEncoding.EncodeToString(bytes), nil
 }
 
 func (t *TOTPService) GenerateCode(secret string) string {

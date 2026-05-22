@@ -1,4 +1,3 @@
-// backend/internal/reaction/reaction.go
 package reaction
 
 import (
@@ -126,14 +125,18 @@ func (s *Service) handleLowRisk() ReactionResult {
 func (s *Service) handleMediumRisk(ctx context.Context, session *SessionInfo) ReactionResult {
 	switch s.config.MediumRiskAction {
 	case "captcha":
-		s.store.MarkCaptchaShown(ctx, session.ID)
+		if err := s.store.MarkCaptchaShown(ctx, session.ID); err != nil {
+			log.Printf("Failed to mark captcha shown for session %s: %v", session.ID, err)
+		}
 		return ReactionResult{
 			Action:         "captcha",
 			Captcha:        true,
 			CaptchaSitekey: s.config.CaptchaSitekey,
 		}
 	case "block":
-		s.store.BlockSession(ctx, session.ID)
+		if err := s.store.BlockSession(ctx, session.ID); err != nil {
+			log.Printf("Failed to block session %s: %v", session.ID, err)
+		}
 		return ReactionResult{
 			Action:  "block",
 			Blocked: true,
@@ -145,14 +148,18 @@ func (s *Service) handleMediumRisk(ctx context.Context, session *SessionInfo) Re
 }
 
 func (s *Service) handleHighRisk(ctx context.Context, session *SessionInfo) ReactionResult {
-	s.store.BlockSession(ctx, session.ID)
+	if err := s.store.BlockSession(ctx, session.ID); err != nil {
+		log.Printf("Failed to block session %s: %v", session.ID, err)
+	}
 
 	if s.config.AddToBlacklist {
 		var duration time.Duration
 		if !s.config.BlockDurationPermanent {
 			duration = time.Duration(s.config.BlacklistDurationMinutes) * time.Minute
 		}
-		s.store.AddToBlacklist(ctx, session.SiteID, session.IP, fmt.Sprintf("High risk score: %d", session.RiskScore), duration)
+		if err := s.store.AddToBlacklist(ctx, session.SiteID, session.IP, fmt.Sprintf("High risk score: %d", session.RiskScore), duration); err != nil {
+			log.Printf("Failed to add to blacklist session %s ip %s: %v", session.ID, session.IP, err)
+		}
 	}
 
 	log.Printf("BLOCKED: session=%s ip=%s risk=%d", session.ID, session.IP, session.RiskScore)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"humanguard/auth"
 	"humanguard/storage"
+	"log"
 	"net/http"
 )
 
@@ -54,7 +55,10 @@ func (h *SiteHandler) CreateSite(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(site)
+	if err := json.NewEncoder(w).Encode(site); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // GET /api/sites
@@ -76,7 +80,10 @@ func (h *SiteHandler) ListSites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sites)
+	if err := json.NewEncoder(w).Encode(sites); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // GET /api/sites/{id}
@@ -94,7 +101,10 @@ func (h *SiteHandler) GetSite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(site)
+	if err := json.NewEncoder(w).Encode(site); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // PUT /api/sites/{id}
@@ -134,7 +144,10 @@ func (h *SiteHandler) UpdateSite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(site)
+	if err := json.NewEncoder(w).Encode(site); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // DELETE /api/sites/{id}
@@ -170,7 +183,10 @@ func (h *SiteHandler) ActivateSite(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(site)
+	if err := json.NewEncoder(w).Encode(site); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // POST /api/sites/{id}/suspend
@@ -190,7 +206,10 @@ func (h *SiteHandler) SuspendSite(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(site)
+	if err := json.NewEncoder(w).Encode(site); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // GET /api/sites/{id}/settings
@@ -204,7 +223,10 @@ func (h *SiteHandler) GetSiteSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(settings)
+	if err := json.NewEncoder(w).Encode(settings); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // PUT /api/sites/{id}/settings
@@ -223,5 +245,8 @@ func (h *SiteHandler) UpdateSiteSettings(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(settings)
+	if err := json.NewEncoder(w).Encode(settings); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }

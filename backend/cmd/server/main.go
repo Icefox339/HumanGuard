@@ -52,7 +52,9 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	// Health check
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			log.Printf("Failed to write health response: %v", err)
+		}
 	})
 
 	// Core services
@@ -160,13 +162,20 @@ func startHTTPServer(store storage.Storage) *http.Server {
 		minioClient, err := storage.NewMinIOClient(endpoint, accessKey, secretKey, bucket, useSSL)
 		if err != nil {
 			log.Printf("Warning: Failed to connect to MinIO: %v, falling back to local storage", err)
-			fs = storage.NewLocalS3("./data/uploads")
+			fs, err = storage.NewLocalS3("./data/uploads")
+			if err != nil {
+				log.Printf("Warning: Failed to create local storage: %v", err)
+			}
 		} else {
 			fs = minioClient
 			log.Println("Connected to MinIO storage")
 		}
 	} else {
-		fs = storage.NewLocalS3("./data/uploads")
+		var err error
+		fs, err = storage.NewLocalS3("./data/uploads")
+		if err != nil {
+			log.Printf("Warning: Failed to create local storage: %v", err)
+		}
 		log.Println("Using local file storage")
 	}
 

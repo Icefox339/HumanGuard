@@ -52,8 +52,15 @@ func (s *storage) ListUserFiles(ctx context.Context, userID string) ([]*FileReco
 	var files []*FileRecord
 	for rows.Next() {
 		var f FileRecord
-		rows.Scan(&f.ID, &f.UserID, &f.Name, &f.OriginalName, &f.Size, &f.MimeType, &f.Hash, &f.Path, &f.CreatedAt)
+		if err := rows.Scan(&f.ID, &f.UserID, &f.Name, &f.OriginalName, &f.Size, &f.MimeType, &f.Hash, &f.Path, &f.CreatedAt); err != nil {
+			return nil, err
+		}
 		files = append(files, &f)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return files, nil
 }

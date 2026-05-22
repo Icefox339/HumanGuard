@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,10 +19,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var (
-	errFileTooLarge    = errors.New("file exceeds maximum size")
-	errUnsupportedType = errors.New("unsupported file type")
-)
+// var (
+// 	errFileTooLarge    = errors.New("file exceeds maximum size")
+// 	errUnsupportedType = errors.New("unsupported file type")
+// )
 
 var allowedTypes = map[string]bool{
 	"image/jpeg":       true,
@@ -137,7 +136,9 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 					n, readErr := part.Read(buf)
 					if n > 0 {
 						bytesRead += int64(n)
-						pw.Write(buf[:n])
+						if _, err := pw.Write(buf[:n]); err != nil {
+							return
+						}
 						h.mu.Lock()
 						if p, ok := h.progress[uploadID]; ok {
 							p.BytesDone = bytesRead
@@ -178,13 +179,12 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if err := h.store.CreateFile(r.Context(), fileRecord); err != nil {
-				h.s3.Delete(path)
+				_ = h.s3.Delete(path)
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save file metadata"})
 				return
 			}
 
 			break
-		} else {
 		}
 	}
 
@@ -214,7 +214,10 @@ func (h *FileHandler) Download(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", fileRecord.MimeType)
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileRecord.OriginalName+"\"")
-	io.Copy(w, reader)
+	if _, err := io.Copy(w, reader); err != nil {
+		http.Error(w, "failed to copy file", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -228,8 +231,14 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	originalName := fileRecord.OriginalName
 
-	h.s3.Delete(fileRecord.Path)
-	h.store.DeleteFile(r.Context(), fileID)
+	if err := h.s3.Delete(fileRecord.Path); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete file from storage"})
+		return
+	}
+	if err := h.store.DeleteFile(r.Context(), fileID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete file metadata"})
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"message":       "file deleted successfully",
@@ -282,7 +291,10 @@ func (h *FileHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate token"})
+		return
+	}
 	token := hex.EncodeToString(b)
 
 	share := &storage.ShareRecord{
@@ -324,7 +336,10 @@ func (h *FileHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", fileRecord.MimeType)
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileRecord.OriginalName+"\"")
-	io.Copy(w, reader)
+	if _, err := io.Copy(w, reader); err != nil {
+		http.Error(w, "failed to copy file", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
@@ -369,7 +384,9 @@ func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
 		h.mu.RUnlock()
 
 		if !ok {
-			conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100})
+			if err := conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100}); err != nil {
+				return
+			}
 			return
 		}
 
@@ -386,5 +403,7 @@ func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
