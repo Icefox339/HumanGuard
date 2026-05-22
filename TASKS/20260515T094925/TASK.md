@@ -881,47 +881,39 @@ docker run -d \
 - Логин: admin
 - Пароль: admin
 
-по этой ссылке в браузере http://localhost:8080/api/auth/keycloak/login
+по этой ссылке в браузере
+http://localhost:8080/api/auth/keycloak/login зайти в аккаунт,
+предварительно надо создать аккаунт юзера в кейклоке как на скринах в
+телеге показано
 
-```
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Nzk1MzUyNzksImlhdCI6MTc3OTQ0ODg3OSwicm9sZSI6InVzZXIiLCJzaWQiOiIyMmJkNzAyMy1jMjgyLTRlMzAtYmQ3NC1jZGFkOThmOWI2MTUiLCJ1c2VyX2lkIjoiNDhjOTFmNDctMmQ4Yy00OWE3LTg4MjItMDdjZGJjZjhmNWNmIn0.0ymu15bhDyOoJZkYLO8hDNekL4IWUAEIEnTELSP-TJg",
-  "user": {
-    "id": "48c91f47-2d8c-49a7-8822-07cdbcf8f5cf",
-    "email": "",
-    "name": "",
-    "avatar_url": null,
-    "role": "user",
-    "is_verified": false,
-    "oauth_provider": "keycloak",
-    "created_at": "2026-05-22T14:21:19.069064191+03:00",
-    "updated_at": "2026-05-22T14:21:19.069064191+03:00",
-    "last_login": null
-  }
-}
-```
+выйти из аккаунта так
+http://localhost:8081/realms/master/protocol/openid-connect/logout
 
-проверка эндпоинта с использованием токена, полученного от keycloak
+при заходе в аккаунт надо ввести имя юзера и пароль которые
+указывались при создании пользователя в админке
 
-```
+из http://localhost:8080/api/auth/keycloak/login нужен токен, далее с
+ним работать уже как обычно
+
+``` bash
 ~/projects/HumanGuard/backend
-[serr@lap]-> TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Nzk1MzUyNzksImlhdCI6MTc3OTQ0ODg3OSwicm9sZSI6InVzZXIiLCJzaWQiOiIyMmJkNzAyMy1jMjgyLTRlMzAtYmQ3NC1jZGFkOThmOWI2MTUiLCJ1c2VyX2lkIjoiNDhjOTFmNDctMmQ4Yy00OWE3LTg4MjItMDdjZGJjZjhmNWNmIn0.0ymu15bhDyOoJZkYLO8hDNekL4IWUAEIEnTELSP-TJg"
+[serr@lap]-> TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Nzk1Mzc1MjQsImlhdCI6MTc3OTQ1MTEyNCwicm9sZSI6InVzZXIiLCJzaWQiOiJjNGZkZmNiNy1hOWVjLTQ1MDMtODFlNy0xMDY2NGE0OTU1NGQiLCJ1c2VyX2lkIjoiMzNhOTk0MDAtMGRhOC00YzEzLWI2OTctMTE4ZDQ1MDJkZGE5In0.juMORvUAGV-br7mquypqCqEDMwxFCWHNCRJV29AI6TU"
 ~/projects/HumanGuard/backend
 [serr@lap]-> curl -X GET http://localhost:8080/api/me \
   -H "Authorization: Bearer $TOKEN" | jq '.'
   % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
                                  Dload  Upload  Total   Spent   Left   Speed
-100    251 100    251   0      0 101.1k      0                              0
+100    278 100    278   0      0 142.5k      0                              0
 {
-  "id": "48c91f47-2d8c-49a7-8822-07cdbcf8f5cf",
-  "email": "",
-  "name": "",
+  "id": "33a99400-0da8-4c13-b697-118d4502dda9",
+  "email": "hahaha@mail.ru",
+  "name": "Name Lastname",
   "avatar_url": null,
   "role": "user",
   "is_verified": false,
   "oauth_provider": "keycloak",
-  "created_at": "2026-05-22T14:21:19.069064Z",
-  "updated_at": "2026-05-22T14:21:19.069064Z",
+  "created_at": "2026-05-22T14:58:44.219809Z",
+  "updated_at": "2026-05-22T14:58:44.219809Z",
   "last_login": null
 }
 ```
