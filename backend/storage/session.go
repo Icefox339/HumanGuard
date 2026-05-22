@@ -1,412 +1,208 @@
 package storage
 
 import (
-	"context"
-	"database/sql"
-	"errors"
-	"fmt"
-	"time"
+    "context"
+    "sync"
+    "time"
 )
 
-func (s *storage) CreateSession(ctx context.Context, session *Session) error {
-	if session.ID == "" {
-		session.ID = generateID()
-	}
-
-	now := time.Now()
-	session.CreatedAt = now
-	session.LastActivity = now
-	
-	if session.ExpiresAt.IsZero() {
-		session.ExpiresAt = now.Add(30 * time.Minute)
-	}
-
-	query := `
-		INSERT INTO sessions (
-			id, site_id, ip, user_agent, device, location,
-			is_active, risk_score, is_blocked, captcha_shown,
-			created_at, last_activity, expires_at
-		) VALUES (
-			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10,
-			$11, $12, $13
-		)
-	`
-
-	_, err := s.db.ExecContext(ctx, query,
-		session.ID,
-		session.SiteID,
-		session.IP,
-		session.UserAgent,
-		session.Device,
-		session.Location,
-		session.IsActive,
-		session.RiskScore,
-		session.IsBlocked,
-		session.CaptchaShown,
-		session.CreatedAt,
-		session.LastActivity,
-		session.ExpiresAt,
-	)
-
-	if err != nil {
-		if isUniqueViolation(err) {
-			return ErrSessionAlreadyExists
-		}
-		return fmt.Errorf("failed to create session: %w", err)
-	}
-
-	return nil
+type MemorySessionStore struct {
+    sessions sync.Map
 }
 
-func (s *storage) GetSession(ctx context.Context, id string) (*Session, error) {
-	query := `
-		SELECT 
-			id, site_id, ip, user_agent, device, location,
-			is_active, risk_score, is_blocked, captcha_shown,
-			created_at, last_activity, expires_at
-		FROM sessions 
-		WHERE id = $1
-	`
-
-	var session Session
-
-	err := s.db.QueryRowContext(ctx, query, id).Scan(
-		&session.ID,
-		&session.SiteID,
-		&session.IP,
-		&session.UserAgent,
-		&session.Device,
-		&session.Location,
-		&session.IsActive,
-		&session.RiskScore,
-		&session.IsBlocked,
-		&session.CaptchaShown,
-		&session.CreatedAt,
-		&session.LastActivity,
-		&session.ExpiresAt,
-	)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrSessionNotFound
-		}
-		return nil, fmt.Errorf("failed to get session: %w", err)
-	}
-
-	return &session, nil
+type ActiveSession struct {
+    ID           string                 `json:"id"`
+    SiteID       string                 `json:"site_id"`
+    IP           string                 `json:"ip"`
+    UserAgent    string                 `json:"user_agent"`
+    Device       string                 `json:"device"`
+    Location     string                 `json:"location"`
+    IsActive     bool                   `json:"is_active"`
+    RiskScore    int                    `json:"risk_score"`
+    IsBlocked    bool                   `json:"is_blocked"`
+    CaptchaShown bool                   `json:"captcha_shown"`
+    Fingerprint  string                 `json:"fingerprint"`
+    Metrics      map[string]interface{} `json:"metrics"`
+    CreatedAt    time.Time              `json:"created_at"`
+    LastActivity time.Time              `json:"last_activity"`
+    ExpiresAt    time.Time              `json:"expires_at"`
 }
 
-func (s *storage) GetSessionByCookie(ctx context.Context, cookie string) (*Session, error) {
-	return s.GetSession(ctx, cookie)
+func NewMemorySessionStore() *MemorySessionStore {
+    store := &MemorySessionStore{}
+    go store.cleanupLoop()
+    return store
 }
 
-func (s *storage) UpdateSession(ctx context.Context, session *Session) error {
-	session.LastActivity = time.Now()
-
-	query := `
-		UPDATE sessions 
-		SET 
-			ip = $1,
-			user_agent = $2,
-			device = $3,
-			location = $4,
-			is_active = $5,
-			risk_score = $6,
-			is_blocked = $7,
-			captcha_shown = $8,
-			last_activity = $9,
-			expires_at = $10
-		WHERE id = $11
-	`
-
-	result, err := s.db.ExecContext(ctx, query,
-		session.IP,
-		session.UserAgent,
-		session.Device,
-		session.Location,
-		session.IsActive,
-		session.RiskScore,
-		session.IsBlocked,
-		session.CaptchaShown,
-		session.LastActivity,
-		session.ExpiresAt,
-		session.ID,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to update session: %w", err)
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		return ErrSessionNotFound
-	}
-
-	return nil
+func (m *MemorySessionStore) cleanupLoop() {
+    ticker := time.NewTicker(5 * time.Minute)
+    for range ticker.C {
+        now := time.Now()
+        m.sessions.Range(func(key, value interface{}) bool {
+            session := value.(*ActiveSession)
+            if now.After(session.ExpiresAt) || !session.IsActive {
+                m.sessions.Delete(key)
+            }
+            return true
+        })
+    }
 }
 
-func (s *storage) UpdateSessionActivity(ctx context.Context, id string) error {
-	query := `
-		UPDATE sessions 
-		SET 
-			last_activity = $1,
-			expires_at = $2
-		WHERE id = $3 AND is_active = true
-	`
-
-	now := time.Now()
-	expiresAt := now.Add(30 * time.Minute)
-
-	result, err := s.db.ExecContext(ctx, query, now, expiresAt, id)
-	if err != nil {
-		return fmt.Errorf("failed to update session activity: %w", err)
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		return ErrSessionNotFound
-	}
-
-	return nil
+func (m *MemorySessionStore) CreateSession(ctx context.Context, session *ActiveSession) error {
+    now := time.Now()
+    session.CreatedAt = now
+    session.LastActivity = now
+    if session.ExpiresAt.IsZero() {
+        session.ExpiresAt = now.Add(30 * time.Minute)
+    }
+    if session.Metrics == nil {
+        session.Metrics = make(map[string]interface{})
+    }
+    m.sessions.Store(session.ID, session)
+    return nil
 }
 
-func (s *storage) DeactivateSession(ctx context.Context, id string) error {
-	query := `
-		UPDATE sessions 
-		SET 
-			is_active = false,
-			expires_at = $1
-		WHERE id = $2
-	`
-
-	result, err := s.db.ExecContext(ctx, query, time.Now(), id)
-	if err != nil {
-		return fmt.Errorf("failed to deactivate session: %w", err)
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		return ErrSessionNotFound
-	}
-
-	return nil
+func (m *MemorySessionStore) GetSession(ctx context.Context, id string) (*ActiveSession, error) {
+    if val, ok := m.sessions.Load(id); ok {
+        return val.(*ActiveSession), nil
+    }
+    return nil, ErrSessionNotFound
 }
 
-func (s *storage) GetActiveSessionsBySite(ctx context.Context, siteID string, limit int) ([]*Session, error) {
-	query := `
-		SELECT 
-			id, site_id, ip, user_agent, device, location,
-			is_active, risk_score, is_blocked, captcha_shown,
-			created_at, last_activity, expires_at
-		FROM sessions 
-		WHERE site_id = $1 AND is_active = true AND expires_at > NOW()
-		ORDER BY last_activity DESC
-		LIMIT $2
-	`
-
-	rows, err := s.db.QueryContext(ctx, query, siteID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active sessions: %w", err)
-	}
-	defer rows.Close()
-
-	var sessions []*Session
-	for rows.Next() {
-		var session Session
-		err := rows.Scan(
-			&session.ID,
-			&session.SiteID,
-			&session.IP,
-			&session.UserAgent,
-			&session.Device,
-			&session.Location,
-			&session.IsActive,
-			&session.RiskScore,
-			&session.IsBlocked,
-			&session.CaptchaShown,
-			&session.CreatedAt,
-			&session.LastActivity,
-			&session.ExpiresAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		sessions = append(sessions, &session)
-	}
-
-	return sessions, nil
+func (m *MemorySessionStore) UpdateSessionActivity(ctx context.Context, id string) error {
+    if val, ok := m.sessions.Load(id); ok {
+        session := val.(*ActiveSession)
+        session.LastActivity = time.Now()
+        session.ExpiresAt = time.Now().Add(30 * time.Minute)
+        return nil
+    }
+    return ErrSessionNotFound
 }
 
-func (s *storage) GetSuspiciousSessions(ctx context.Context, siteID string, minRisk int) ([]*Session, error) {
-	query := `
-		SELECT 
-			id, site_id, ip, user_agent, device, location,
-			is_active, risk_score, is_blocked, captcha_shown,
-			created_at, last_activity, expires_at
-		FROM sessions 
-		WHERE site_id = $1 AND risk_score >= $2 AND is_active = true
-		ORDER BY risk_score DESC, last_activity DESC
-		LIMIT 100
-	`
-
-	rows, err := s.db.QueryContext(ctx, query, siteID, minRisk)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get suspicious sessions: %w", err)
-	}
-	defer rows.Close()
-
-	var sessions []*Session
-	for rows.Next() {
-		var session Session
-		err := rows.Scan(
-			&session.ID,
-			&session.SiteID,
-			&session.IP,
-			&session.UserAgent,
-			&session.Device,
-			&session.Location,
-			&session.IsActive,
-			&session.RiskScore,
-			&session.IsBlocked,
-			&session.CaptchaShown,
-			&session.CreatedAt,
-			&session.LastActivity,
-			&session.ExpiresAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		sessions = append(sessions, &session)
-	}
-
-	return sessions, nil
+func (m *MemorySessionStore) DeactivateSession(ctx context.Context, id string) error {
+    if _, ok := m.sessions.Load(id); ok {
+        m.sessions.Delete(id)
+        return nil
+    }
+    return ErrSessionNotFound
 }
 
-func (s *storage) BlockSession(ctx context.Context, id string) error {
-	query := `
-		UPDATE sessions 
-		SET 
-			is_blocked = true,
-			is_active = false,
-			expires_at = $1
-		WHERE id = $2
-	`
-
-	result, err := s.db.ExecContext(ctx, query, time.Now(), id)
-	if err != nil {
-		return fmt.Errorf("failed to block session: %w", err)
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		return ErrSessionNotFound
-	}
-
-	return nil
+func (m *MemorySessionStore) BlockSession(ctx context.Context, id string) error {
+    if val, ok := m.sessions.Load(id); ok {
+        session := val.(*ActiveSession)
+        session.IsBlocked = true
+        session.IsActive = false
+        return nil
+    }
+    return ErrSessionNotFound
 }
 
-func (s *storage) UnblockSession(ctx context.Context, id string) error {
-	query := `
-		UPDATE sessions 
-		SET 
-			is_blocked = false,
-			is_active = true,
-			expires_at = $1
-		WHERE id = $2
-	`
-
-	expiresAt := time.Now().Add(30 * time.Minute)
-	result, err := s.db.ExecContext(ctx, query, expiresAt, id)
-	if err != nil {
-		return fmt.Errorf("failed to unblock session: %w", err)
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		return ErrSessionNotFound
-	}
-
-	return nil
+func (m *MemorySessionStore) UnblockSession(ctx context.Context, id string) error {
+    if val, ok := m.sessions.Load(id); ok {
+        session := val.(*ActiveSession)
+        session.IsBlocked = false
+        session.IsActive = true
+        return nil
+    }
+    return ErrSessionNotFound
 }
 
-func (s *storage) UpdateRiskScore(ctx context.Context, id string, score int) error {
-	if score < 0 {
-		score = 0
-	}
-	if score > 100 {
-		score = 100
-	}
-
-	query := `
-		UPDATE sessions 
-		SET risk_score = $1 
-		WHERE id = $2
-	`
-
-	_, err := s.db.ExecContext(ctx, query, score, id)
-	return err
+func (m *MemorySessionStore) UpdateRiskScore(ctx context.Context, id string, score int) error {
+    if val, ok := m.sessions.Load(id); ok {
+        session := val.(*ActiveSession)
+        session.RiskScore = score
+        return nil
+    }
+    return ErrSessionNotFound
 }
 
-func (s *storage) MarkCaptchaShown(ctx context.Context, id string) error {
-	query := `
-		UPDATE sessions 
-		SET captcha_shown = true 
-		WHERE id = $1
-	`
-
-	_, err := s.db.ExecContext(ctx, query, id)
-	return err
+func (m *MemorySessionStore) MarkCaptchaShown(ctx context.Context, id string) error {
+    if val, ok := m.sessions.Load(id); ok {
+        session := val.(*ActiveSession)
+        session.CaptchaShown = true
+        return nil
+    }
+    return ErrSessionNotFound
 }
 
-func (s *storage) CleanupExpiredSessions(ctx context.Context) (int64, error) {
-	query := `
-		DELETE FROM sessions 
-		WHERE expires_at < NOW() OR (is_active = false AND last_activity < NOW() - INTERVAL '1 day')
-	`
-
-	result, err := s.db.ExecContext(ctx, query)
-	if err != nil {
-		return 0, fmt.Errorf("failed to cleanup expired sessions: %w", err)
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	return rowsAffected, nil
+func (m *MemorySessionStore) UpdateSessionMetrics(ctx context.Context, id string, metrics map[string]interface{}) error {
+    if val, ok := m.sessions.Load(id); ok {
+        session := val.(*ActiveSession)
+        for k, v := range metrics {
+            session.Metrics[k] = v
+        }
+        return nil
+    }
+    return ErrSessionNotFound
 }
 
-func (s *storage) GetSessionStats(ctx context.Context, siteID string) (*SessionStats, error) {
-	query := `
-		SELECT 
-			COUNT(*) as total,
-			COUNT(CASE WHEN is_active = true AND expires_at > NOW() THEN 1 END) as active,
-			COUNT(CASE WHEN is_blocked = true THEN 1 END) as blocked,
-			AVG(risk_score) as avg_risk,
-			COUNT(DISTINCT ip) as unique_ips
-		FROM sessions 
-		WHERE site_id = $1 AND created_at > NOW() - INTERVAL '24 hours'
-	`
-
-	var stats SessionStats
-	err := s.db.QueryRowContext(ctx, query, siteID).Scan(
-		&stats.Total,
-		&stats.Active,
-		&stats.Blocked,
-		&stats.AvgRisk,
-		&stats.UniqueIPs,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get session stats: %w", err)
-	}
-
-	return &stats, nil
+func (m *MemorySessionStore) GetSessionMetrics(ctx context.Context, id string) (map[string]interface{}, error) {
+    if val, ok := m.sessions.Load(id); ok {
+        session := val.(*ActiveSession)
+        return session.Metrics, nil
+    }
+    return nil, ErrSessionNotFound
 }
 
-type SessionStats struct {
-	Total     int64   `json:"total"`
-	Active    int64   `json:"active"`
-	Blocked   int64   `json:"blocked"`
-	AvgRisk   float64 `json:"avg_risk"`
-	UniqueIPs int64   `json:"unique_ips"`
+func (m *MemorySessionStore) GetActiveSessionsBySite(ctx context.Context, siteID string, limit int) ([]*ActiveSession, error) {
+    var sessions []*ActiveSession
+    m.sessions.Range(func(key, value interface{}) bool {
+        session := value.(*ActiveSession)
+        if session.SiteID == siteID && session.IsActive && time.Now().Before(session.ExpiresAt) {
+            sessions = append(sessions, session)
+        }
+        return len(sessions) < limit
+    })
+    return sessions, nil
 }
 
+func (m *MemorySessionStore) GetSuspiciousSessions(ctx context.Context, siteID string, minRisk int) ([]*ActiveSession, error) {
+    var sessions []*ActiveSession
+    m.sessions.Range(func(key, value interface{}) bool {
+        session := value.(*ActiveSession)
+        if session.SiteID == siteID && session.RiskScore >= minRisk && session.IsActive {
+            sessions = append(sessions, session)
+        }
+        return true
+    })
+    return sessions, nil
+}
+
+func (m *MemorySessionStore) GetSessionStats(ctx context.Context, siteID string) (*SessionStats, error) {
+    var stats SessionStats
+    ips := make(map[string]bool)
+    m.sessions.Range(func(key, value interface{}) bool {
+        session := value.(*ActiveSession)
+        if session.SiteID == siteID {
+            stats.Total++
+            if session.IsActive && time.Now().Before(session.ExpiresAt) {
+                stats.Active++
+            }
+            if session.IsBlocked {
+                stats.Blocked++
+            }
+            stats.AvgRisk += float64(session.RiskScore)
+            ips[session.IP] = true
+        }
+        return true
+    })
+    if stats.Total > 0 {
+        stats.AvgRisk /= float64(stats.Total)
+    }
+    stats.UniqueIPs = int64(len(ips))
+    return &stats, nil
+}
+
+func (m *MemorySessionStore) CleanupExpiredSessions(ctx context.Context) (int64, error) {
+    var deleted int64
+    now := time.Now()
+    m.sessions.Range(func(key, value interface{}) bool {
+        session := value.(*ActiveSession)
+        if now.After(session.ExpiresAt) || !session.IsActive {
+            m.sessions.Delete(key)
+            deleted++
+        }
+        return true
+    })
+    return deleted, nil
+}

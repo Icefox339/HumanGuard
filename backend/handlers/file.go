@@ -1,4 +1,3 @@
-// backend/handlers/file.go
 package handlers
 
 import (
@@ -27,14 +26,14 @@ var (
 )
 
 var allowedTypes = map[string]bool{
-	"image/jpeg":      true,
-	"image/png":       true,
-	"image/gif":       true,
-	"image/webp":      true,
-	"application/pdf": true,
-	"text/plain":      true,
-	"text/csv":        true,
-	"application/zip": true,
+	"image/jpeg":       true,
+	"image/png":        true,
+	"image/gif":        true,
+	"image/webp":       true,
+	"application/pdf":  true,
+	"text/plain":       true,
+	"text/csv":         true,
+	"application/zip":  true,
 	"application/json": true,
 }
 
@@ -51,6 +50,7 @@ type FileHandler struct {
 
 type UploadProgress struct {
 	UploadID   string `json:"upload_id"`
+	UserID     string `json:"-"`
 	BytesDone  int64  `json:"bytes_done"`
 	TotalBytes int64  `json:"total_bytes"`
 	Percentage int    `json:"percentage"`
@@ -80,19 +80,24 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	uploadID := r.URL.Query().Get("upload_id")
+	if uploadID == "" {
+		uploadID = uuid.New().String()
+	}
+
+	h.mu.Lock()
+	h.progress[uploadID] = &UploadProgress{
+		UploadID:   uploadID,
+		UserID:     userID,
+		TotalBytes: contentLength,
+	}
+	h.mu.Unlock()
+
 	mr, err := r.MultipartReader()
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid multipart request"})
 		return
 	}
-
-	uploadID := uuid.New().String()
-	h.mu.Lock()
-	h.progress[uploadID] = &UploadProgress{
-		UploadID:   uploadID,
-		TotalBytes: contentLength,
-	}
-	h.mu.Unlock()
 
 	var fileRecord *storage.FileRecord
 	var bytesRead int64
@@ -106,8 +111,11 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if part.FormName() == "file" {
-			filename := part.FileName()
+		formName := part.FormName()
+		fileName := part.FileName()
+
+		if formName == "file" {
+			filename := fileName
 			mimeType := part.Header.Get("Content-Type")
 
 			if !allowedTypes[mimeType] {
@@ -176,6 +184,7 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			}
 
 			break
+		} else {
 		}
 	}
 
@@ -191,7 +200,7 @@ func (h *FileHandler) Download(w http.ResponseWriter, r *http.Request) {
 	fileID := r.PathValue("id")
 
 	fileRecord, err := h.store.GetFile(r.Context(), fileID)
-	if err != nil {
+	if err != nil || fileRecord.UserID != auth.GetUserID(r.Context()) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -212,15 +221,21 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	fileID := r.PathValue("id")
 
 	fileRecord, err := h.store.GetFile(r.Context(), fileID)
-	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+	if err != nil || fileRecord.UserID != auth.GetUserID(r.Context()) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
 	}
+
+	originalName := fileRecord.OriginalName
 
 	h.s3.Delete(fileRecord.Path)
 	h.store.DeleteFile(r.Context(), fileID)
 
-	w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusOK, map[string]string{
+		"message":       "file deleted successfully",
+		"file_id":       fileID,
+		"original_name": originalName,
+	})
 }
 
 func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -260,6 +275,12 @@ func (h *FileHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fileRecord, err := h.store.GetFile(r.Context(), req.FileID)
+	if err != nil || fileRecord.UserID != userID {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
+		return
+	}
+
 	b := make([]byte, 32)
 	rand.Read(b)
 	token := hex.EncodeToString(b)
@@ -281,8 +302,7 @@ func (h *FileHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"token":     token,
-		"share_url": "http://localhost:8080/api/files/share/" + token,
+		"token": token,
 	})
 }
 
@@ -308,9 +328,29 @@ func (h *FileHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserID(r.Context())
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	uploadID := r.URL.Query().Get("upload_id")
 	if uploadID == "" {
 		http.Error(w, "upload_id required", http.StatusBadRequest)
+		return
+	}
+
+	h.mu.RLock()
+	progress, exists := h.progress[uploadID]
+	h.mu.RUnlock()
+
+	if !exists {
+		http.Error(w, "upload not found", http.StatusNotFound)
+		return
+	}
+
+	if progress.UserID != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
