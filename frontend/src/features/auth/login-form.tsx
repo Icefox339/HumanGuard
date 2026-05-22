@@ -14,6 +14,7 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+type OAuthProvider = 'keycloak' | 'google' | 'github';
 
 export const LoginForm = () => {
   const navigate = useNavigate();
@@ -31,6 +32,20 @@ export const LoginForm = () => {
       navigate('/dashboard', { replace: true });
     }
   }, [loginMutation.isSuccess, navigate]);
+
+
+
+  const [oauthPendingProvider, setOauthPendingProvider] = useState<OAuthProvider | null>(null);
+  const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
+    { id: 'keycloak', label: 'Keycloak (локально)' },
+    { id: 'google', label: 'Google' },
+    { id: 'github', label: 'GitHub' }
+  ];
+
+  const startOAuthLogin = (provider: OAuthProvider) => {
+    setOauthPendingProvider(provider);
+    window.location.href = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8080'}/api/auth/${provider}/login`;
+  };
 
   const registrationHint = location.state && typeof location.state === 'object' && 'message' in location.state
     ? String(location.state.message)
@@ -77,6 +92,24 @@ export const LoginForm = () => {
       <button disabled={loginMutation.isPending} className="interactive-chip theme-button w-full py-2 disabled:opacity-60">
         {loginMutation.isPending ? 'Входим...' : 'Войти'}
       </button>
+
+
+      <div className="space-y-2 pt-2">
+        <p className="text-xs uppercase tracking-wide text-[rgb(var(--text-secondary))]">Или войдите через SSO OAuth</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {oauthProviders.map((provider) => (
+            <button
+              key={provider.id}
+              type="button"
+              disabled={oauthPendingProvider !== null}
+              onClick={() => startOAuthLogin(provider.id)}
+              className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {oauthPendingProvider === provider.id ? 'Переходим...' : provider.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <p className="text-sm text-[rgb(var(--text-secondary))]">
         Нет аккаунта?{' '}

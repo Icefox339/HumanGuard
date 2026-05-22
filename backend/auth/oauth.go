@@ -3,19 +3,22 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"net/http"
+	"strconv"
 )
 
 type OAuthService struct {
-	config *oauth2.Config
+	config   *oauth2.Config
 	provider string
 }
 
 func NewOAuthService(provider, clientID, clientSecret, redirectURL string) *OAuthService {
 	var endpoint oauth2.Endpoint
 	scopes := []string{"openid", "profile", "email"}
-	
+
 	switch provider {
 	case "google":
 		endpoint = google.Endpoint
@@ -32,7 +35,7 @@ func NewOAuthService(provider, clientID, clientSecret, redirectURL string) *OAut
 			TokenURL: "http://localhost:8081/realms/master/protocol/openid-connect/token",
 		}
 	}
-	
+
 	return &OAuthService{
 		config: &oauth2.Config{
 			ClientID:     clientID,
@@ -55,7 +58,7 @@ func (o *OAuthService) ExchangeCode(ctx context.Context, code string) (*oauth2.T
 
 func (o *OAuthService) GetUserInfo(ctx context.Context, token *oauth2.Token) (*OAuthUserInfo, error) {
 	client := o.config.Client(ctx, token)
-	
+
 	var userInfoURL string
 	switch o.provider {
 	case "google":
@@ -65,15 +68,15 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token *oauth2.Token) (*O
 	default:
 		userInfoURL = "http://localhost:8081/realms/master/protocol/openid-connect/userinfo"
 	}
-	
+
 	resp, err := client.Get(userInfoURL)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	var userInfo OAuthUserInfo
-	
+
 	switch o.provider {
 	case "google":
 		var googleUser struct {
@@ -87,7 +90,7 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token *oauth2.Token) (*O
 		userInfo.ID = googleUser.ID
 		userInfo.Email = googleUser.Email
 		userInfo.Name = googleUser.Name
-		
+
 	case "github":
 		var githubUser struct {
 			ID    int    `json:"id"`
@@ -98,13 +101,46 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token *oauth2.Token) (*O
 		if err := json.NewDecoder(resp.Body).Decode(&githubUser); err != nil {
 			return nil, err
 		}
-		userInfo.ID = string(rune(githubUser.ID))
+		userInfo.ID = strconv.Itoa(githubUser.ID)
 		userInfo.Email = githubUser.Email
 		userInfo.Name = githubUser.Name
 		if userInfo.Name == "" {
 			userInfo.Name = githubUser.Login
 		}
-		
+		if userInfo.Email == "" {
+			emailReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
+			if err != nil {
+				return nil, err
+			}
+			emailResp, err := client.Do(emailReq)
+			if err != nil {
+				return nil, err
+			}
+			defer emailResp.Body.Close()
+
+			var emails []struct {
+				Email    string `json:"email"`
+				Primary  bool   `json:"primary"`
+				Verified bool   `json:"verified"`
+			}
+			if err := json.NewDecoder(emailResp.Body).Decode(&emails); err != nil {
+				return nil, err
+			}
+
+			for _, item := range emails {
+				if item.Primary && item.Verified {
+					userInfo.Email = item.Email
+					break
+				}
+			}
+			if userInfo.Email == "" && len(emails) > 0 {
+				userInfo.Email = emails[0].Email
+			}
+		}
+		if userInfo.Email == "" {
+			return nil, fmt.Errorf("github account has no accessible email")
+		}
+
 	default:
 		var kcUser struct {
 			Sub   string `json:"sub"`
@@ -118,7 +154,7 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token *oauth2.Token) (*O
 		userInfo.Email = kcUser.Email
 		userInfo.Name = kcUser.Name
 	}
-	
+
 	return &userInfo, nil
 }
 

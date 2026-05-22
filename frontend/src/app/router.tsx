@@ -6,6 +6,7 @@ import { RoleRoute } from '@/components/layout/role-route';
 import { LoginPage } from '@/pages/auth/login-page';
 import { RegisterPage } from '@/pages/auth/register-page';
 import { TwoFaSetupPage } from '@/pages/auth/twofa-setup-page';
+import { OAuthCallbackPage } from '@/pages/auth/oauth-callback-page';
 import { DashboardPage } from '@/pages/app/dashboard-page';
 import { FilesPage } from '@/pages/app/files-page';
 import { ProfilePage } from '@/pages/app/profile-page';
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: '2fa-setup', element: <TwoFaSetupPage /> },
+      { path: 'oauth/callback', element: <OAuthCallbackPage /> },
       { path: '*', element: <NotFoundPage /> }
     ]
   },
