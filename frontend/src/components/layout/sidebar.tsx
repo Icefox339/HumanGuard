@@ -6,8 +6,7 @@ const mainLinks = [
   ['Sites', '/sites'],
   ['Files', '/files'],
   ['Profile', '/profile'],
-  ['API Keys', '/api-keys'],
-  ['Users', '/admin/users']
+  ['API Keys', '/api-keys']
 ];
 
 type SidebarProps = {

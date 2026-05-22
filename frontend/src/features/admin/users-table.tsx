@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { getCurrentUser } from '@/api/auth';
-import { getUsers, updateUser, UserDetails } from '@/api/users';
+import { changeUserPassword, getUsers, updateUser, UserDetails } from '@/api/users';
 import { AdminUserSession, deactivateUserSession, getAdminUserSessions } from '@/api/sessions';
 
 const getError = (error: unknown) => {
@@ -16,7 +16,9 @@ export const UsersTable = () => {
   const [users, setUsers] = useState<UserDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [passwordDraft, setPasswordDraft] = useState('');
   const [sessions, setSessions] = useState<AdminUserSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [deactivatingSessionId, setDeactivatingSessionId] = useState<string | null>(null);
@@ -79,16 +81,41 @@ export const UsersTable = () => {
     }
   };
 
-  const promoteToAdmin = async (user: UserDetails) => {
+  const saveUser = async (user: UserDetails) => {
     setUpdatingUserId(user.id);
     setError(null);
 
     try {
-      await updateUser(user.id, { role: 'admin' });
-      setUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, role: 'admin' } : item)));
+      const updated = await updateUser(user.id, {
+        name: user.name,
+        role: user.role,
+        avatar_url: user.avatar_url ?? null
+      });
+      setUsers((prev) => prev.map((item) => (item.id === user.id ? updated : item)));
+      setEditingUserId(null);
     } catch (e) {
       const err = getError(e);
-      setError(`Не удалось назначить пользователя администратором: ${err.message}`);
+      setError(`Не удалось обновить пользователя: ${err.message}`);
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  const savePassword = async (user: UserDetails) => {
+    if (!passwordDraft || passwordDraft.length < 8) {
+      setError('Новый пароль должен быть не короче 8 символов');
+      return;
+    }
+
+    setUpdatingUserId(user.id);
+    setError(null);
+
+    try {
+      await changeUserPassword(user.id, { new_password: passwordDraft });
+      setPasswordDraft('');
+    } catch (e) {
+      const err = getError(e);
+      setError(`Не удалось изменить пароль: ${err.message}`);
     } finally {
       setUpdatingUserId(null);
     }
@@ -113,10 +140,7 @@ export const UsersTable = () => {
     <section className="theme-card space-y-4 rounded-2xl border border-[rgb(var(--border))] p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-[rgb(var(--text-primary))]">Пользователи системы</h2>
-        <button
-          className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-sm font-medium text-[rgb(var(--text-primary))]"
-          onClick={() => void loadUsers()}
-        >
+        <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-sm font-medium text-[rgb(var(--text-primary))]" onClick={() => void loadUsers()}>
           Обновить
         </button>
       </div>
@@ -124,48 +148,49 @@ export const UsersTable = () => {
       {loading && <p className="text-sm text-[rgb(var(--text-secondary))]">Загрузка пользователей...</p>}
       {error && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</p>}
 
-      {!loading && users.length === 0 && !error && <p className="text-sm text-[rgb(var(--text-secondary))]">Пользователей пока нет.</p>}
-
       {users.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))]">
           <table className="min-w-full border-collapse text-sm">
-            <thead className="bg-[rgb(var(--bg-main))]">
-              <tr className="text-left text-[rgb(var(--text-secondary))]">
-                <th className="px-3 py-2">ID</th>
-                <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2">Имя</th>
-                <th className="px-3 py-2">Роль</th>
-                <th className="px-3 py-2">Создан</th>
-                <th className="px-3 py-2">Последний вход</th>
-                <th className="px-3 py-2">Действия</th>
-              </tr>
-            </thead>
+            <thead className="bg-[rgb(var(--bg-main))]"><tr className="text-left text-[rgb(var(--text-secondary))]"><th className="px-3 py-2">Email</th><th className="px-3 py-2">Имя</th><th className="px-3 py-2">Аватар URL</th><th className="px-3 py-2">Роль</th><th className="px-3 py-2">Пароль</th><th className="px-3 py-2">Действия</th></tr></thead>
             <tbody>
-              {users.map((user) => (
-                <tr key={user.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
-                  <td className="max-w-56 truncate px-3 py-2" title={user.id}>{user.id}</td>
-                  <td className="px-3 py-2">{user.email}</td>
-                  <td className="px-3 py-2">{user.name || '—'}</td>
-                  <td className="px-3 py-2">
-                    <span className="rounded-full bg-[rgb(var(--bg-main))] px-2 py-0.5 text-xs font-medium text-[rgb(var(--text-secondary))]">{user.role}</span>
-                  </td>
-                  <td className="px-3 py-2">{user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
-                  <td className="px-3 py-2">{user.last_login ? new Date(user.last_login).toLocaleString() : '—'}</td>
-                  <td className="px-3 py-2">
-                    {user.role === 'admin' ? (
-                      <span className="text-xs text-[rgb(var(--text-secondary))]">Уже админ</span>
-                    ) : (
-                      <button
-                        className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))] disabled:opacity-60"
-                        disabled={updatingUserId === user.id}
-                        onClick={() => void promoteToAdmin(user)}
-                      >
-                        {updatingUserId === user.id ? 'Назначаем...' : 'Сделать админом'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {users.map((user) => {
+                const isEditing = editingUserId === user.id;
+                return (
+                  <tr key={user.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
+                    <td className="px-3 py-2">{user.email}</td>
+                    <td className="px-3 py-2">
+                      {isEditing ? <input className="w-52 rounded border px-2 py-1" value={user.name || ''} onChange={(e) => setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, name: e.target.value } : u))} /> : (user.name || '—')}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isEditing ? <input className="w-64 rounded border px-2 py-1" value={user.avatar_url || ''} onChange={(e) => setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, avatar_url: e.target.value || null } : u))} /> : (user.avatar_url || '—')}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isEditing ? (
+                        <select className="rounded border px-2 py-1" value={user.role} onChange={(e) => setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, role: e.target.value } : u))}>
+                          <option value="user">user</option>
+                          <option value="admin">admin</option>
+                        </select>
+                      ) : user.role}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex gap-2">
+                        <input className="w-44 rounded border px-2 py-1" type="password" placeholder="Новый пароль" value={editingUserId === user.id ? passwordDraft : ''} onChange={(e) => setPasswordDraft(e.target.value)} />
+                        <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs" disabled={updatingUserId === user.id} onClick={() => void savePassword(user)}>Сменить</button>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {isEditing ? (
+                        <div className="flex gap-2">
+                          <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs" disabled={updatingUserId === user.id} onClick={() => void saveUser(user)}>Сохранить</button>
+                          <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs" onClick={() => setEditingUserId(null)}>Отмена</button>
+                        </div>
+                      ) : (
+                        <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs" onClick={() => { setEditingUserId(user.id); setPasswordDraft(''); }}>Редактировать</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -174,53 +199,11 @@ export const UsersTable = () => {
       <div className="space-y-3 rounded-xl border border-[rgb(var(--border))] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))]">Активные пользовательские сессии</h3>
-          <button
-            className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-sm font-medium text-[rgb(var(--text-primary))]"
-            onClick={() => void loadSessions()}
-          >
-            Обновить сессии
-          </button>
+          <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-sm font-medium text-[rgb(var(--text-primary))]" onClick={() => void loadSessions()}>Обновить сессии</button>
         </div>
-
         {sessionsLoading && <p className="text-sm text-[rgb(var(--text-secondary))]">Загрузка сессий...</p>}
         {!sessionsLoading && sessions.length === 0 && <p className="text-sm text-[rgb(var(--text-secondary))]">Активных сессий нет.</p>}
-
-        {sessions.length > 0 && (
-          <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))]">
-            <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-[rgb(var(--bg-main))]">
-                <tr className="text-left text-[rgb(var(--text-secondary))]">
-                  <th className="px-3 py-2">Session ID</th>
-                  <th className="px-3 py-2">User</th>
-                  <th className="px-3 py-2">Role</th>
-                  <th className="px-3 py-2">IP</th>
-                  <th className="px-3 py-2">Last seen</th>
-                  <th className="px-3 py-2">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((session) => (
-                  <tr key={session.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
-                    <td className="max-w-48 truncate px-3 py-2" title={session.id}>{session.id}</td>
-                    <td className="px-3 py-2">{session.email}</td>
-                    <td className="px-3 py-2">{session.role}</td>
-                    <td className="px-3 py-2">{session.ip || '—'}</td>
-                    <td className="px-3 py-2">{session.last_seen ? new Date(session.last_seen).toLocaleString() : '—'}</td>
-                    <td className="px-3 py-2">
-                      <button
-                        className="interactive-chip rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 disabled:opacity-60"
-                        disabled={deactivatingSessionId === session.id}
-                        onClick={() => void deactivateSession(session)}
-                      >
-                        {deactivatingSessionId === session.id ? 'Деактивируем...' : 'Деактивировать'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {sessions.length > 0 && <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))]"><table className="min-w-full border-collapse text-sm"><thead className="bg-[rgb(var(--bg-main))]"><tr className="text-left text-[rgb(var(--text-secondary))]"><th className="px-3 py-2">Session ID</th><th className="px-3 py-2">User</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">IP</th><th className="px-3 py-2">Last seen</th><th className="px-3 py-2">Действия</th></tr></thead><tbody>{sessions.map((session) => (<tr key={session.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]"><td className="max-w-48 truncate px-3 py-2" title={session.id}>{session.id}</td><td className="px-3 py-2">{session.email}</td><td className="px-3 py-2">{session.role}</td><td className="px-3 py-2">{session.ip || '—'}</td><td className="px-3 py-2">{session.last_seen ? new Date(session.last_seen).toLocaleString() : '—'}</td><td className="px-3 py-2"><button className="interactive-chip rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 disabled:opacity-60" disabled={deactivatingSessionId === session.id} onClick={() => void deactivateSession(session)}>{deactivatingSessionId === session.id ? 'Деактивируем...' : 'Деактивировать'}</button></td></tr>))}</tbody></table></div>}
       </div>
     </section>
   );

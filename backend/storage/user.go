@@ -248,14 +248,16 @@ func (s *storage) UpdateUser(ctx context.Context, user *User) error {
 		UPDATE users
 		SET
 			name = $1,
-			role = $2,
-			updated_at = $3,
-			last_login = $4
-		WHERE id = $5
+			avatar_url = $2,
+			role = $3,
+			updated_at = $4,
+			last_login = $5
+		WHERE id = $6
 	`
 
 	result, err := s.db.ExecContext(ctx, query,
 		user.Name,
+		user.AvatarURL,
 		user.Role,
 		user.UpdatedAt,
 		user.LastLogin,
