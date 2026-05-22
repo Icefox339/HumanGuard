@@ -7,3 +7,6 @@ scrape_configs:
     static_configs:
       - targets: ['node-exporter:9100'] # Адрес нашего Node Exporter
       
+  - job_name: 'humanguard-backend'
+    static_configs:
+      - targets: ['humanguard-backend:8000']

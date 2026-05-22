@@ -15,7 +15,7 @@ bash ./startup-2_setup-ssh-ufw.sh
 Настройка мониторинга grafana/prometheus от deploy-пользователя:
 ``` bash
 cd monitoring
-docker compose up -d
+docker compose up -p mon -d
 ```
 ---
 Для просмотра мониторинга:
