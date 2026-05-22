@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { getCurrentUser } from '@/api/auth';
 import { getUsers, updateUser, UserDetails } from '@/api/users';
+import { AdminUserSession, deactivateUserSession, getAdminUserSessions } from '@/api/sessions';
 
 const getError = (error: unknown) => {
   const err = error as AxiosError<{ error?: string }>;
@@ -16,6 +17,9 @@ export const UsersTable = () => {
   const [loading, setLoading] = useState(false);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<AdminUserSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [deactivatingSessionId, setDeactivatingSessionId] = useState<string | null>(null);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -57,7 +61,23 @@ export const UsersTable = () => {
 
   useEffect(() => {
     void loadUsers();
+    void loadSessions();
   }, []);
+
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+
+    try {
+      const data = await getAdminUserSessions();
+      setSessions(data);
+    } catch (e) {
+      const err = getError(e);
+      setError(`Не удалось загрузить сессии пользователей: ${err.message}`);
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
 
   const promoteToAdmin = async (user: UserDetails) => {
     setUpdatingUserId(user.id);
@@ -71,6 +91,21 @@ export const UsersTable = () => {
       setError(`Не удалось назначить пользователя администратором: ${err.message}`);
     } finally {
       setUpdatingUserId(null);
+    }
+  };
+
+  const deactivateSession = async (session: AdminUserSession) => {
+    setDeactivatingSessionId(session.id);
+    setError(null);
+
+    try {
+      await deactivateUserSession(session.id);
+      setSessions((prev) => prev.filter((item) => item.id !== session.id));
+    } catch (e) {
+      const err = getError(e);
+      setError(`Не удалось деактивировать сессию: ${err.message}`);
+    } finally {
+      setDeactivatingSessionId(null);
     }
   };
 
@@ -135,6 +170,58 @@ export const UsersTable = () => {
           </table>
         </div>
       )}
+
+      <div className="space-y-3 rounded-xl border border-[rgb(var(--border))] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))]">Активные пользовательские сессии</h3>
+          <button
+            className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-sm font-medium text-[rgb(var(--text-primary))]"
+            onClick={() => void loadSessions()}
+          >
+            Обновить сессии
+          </button>
+        </div>
+
+        {sessionsLoading && <p className="text-sm text-[rgb(var(--text-secondary))]">Загрузка сессий...</p>}
+        {!sessionsLoading && sessions.length === 0 && <p className="text-sm text-[rgb(var(--text-secondary))]">Активных сессий нет.</p>}
+
+        {sessions.length > 0 && (
+          <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))]">
+            <table className="min-w-full border-collapse text-sm">
+              <thead className="bg-[rgb(var(--bg-main))]">
+                <tr className="text-left text-[rgb(var(--text-secondary))]">
+                  <th className="px-3 py-2">Session ID</th>
+                  <th className="px-3 py-2">User</th>
+                  <th className="px-3 py-2">Role</th>
+                  <th className="px-3 py-2">IP</th>
+                  <th className="px-3 py-2">Last seen</th>
+                  <th className="px-3 py-2">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.map((session) => (
+                  <tr key={session.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
+                    <td className="max-w-48 truncate px-3 py-2" title={session.id}>{session.id}</td>
+                    <td className="px-3 py-2">{session.email}</td>
+                    <td className="px-3 py-2">{session.role}</td>
+                    <td className="px-3 py-2">{session.ip || '—'}</td>
+                    <td className="px-3 py-2">{session.last_seen ? new Date(session.last_seen).toLocaleString() : '—'}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        className="interactive-chip rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 disabled:opacity-60"
+                        disabled={deactivatingSessionId === session.id}
+                        onClick={() => void deactivateSession(session)}
+                      >
+                        {deactivatingSessionId === session.id ? 'Деактивируем...' : 'Деактивировать'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </section>
   );
 };
