@@ -861,3 +861,59 @@ This is a test file for HumanGuard
 ```
 
 ну и все методы работают как и работали для работы с файлами
+
+# KeyCloak
+
+Запуск
+
+``` bash
+docker run -d \
+  --name keycloak \
+  -p 8081:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  quay.io/keycloak/keycloak:24.0.1 \
+  start-dev
+```
+
+Далее тут http://localhost:8081
+
+- Логин: admin
+- Пароль: admin
+
+по этой ссылке в браузере
+http://localhost:8080/api/auth/keycloak/login зайти в аккаунт,
+предварительно надо создать аккаунт юзера в кейклоке как на скринах в
+телеге показано
+
+выйти из аккаунта так
+http://localhost:8081/realms/master/protocol/openid-connect/logout
+
+при заходе в аккаунт надо ввести имя юзера и пароль которые
+указывались при создании пользователя в админке
+
+из http://localhost:8080/api/auth/keycloak/login нужен токен, далее с
+ним работать уже как обычно
+
+``` bash
+~/projects/HumanGuard/backend
+[serr@lap]-> TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Nzk1Mzc1MjQsImlhdCI6MTc3OTQ1MTEyNCwicm9sZSI6InVzZXIiLCJzaWQiOiJjNGZkZmNiNy1hOWVjLTQ1MDMtODFlNy0xMDY2NGE0OTU1NGQiLCJ1c2VyX2lkIjoiMzNhOTk0MDAtMGRhOC00YzEzLWI2OTctMTE4ZDQ1MDJkZGE5In0.juMORvUAGV-br7mquypqCqEDMwxFCWHNCRJV29AI6TU"
+~/projects/HumanGuard/backend
+[serr@lap]-> curl -X GET http://localhost:8080/api/me \
+  -H "Authorization: Bearer $TOKEN" | jq '.'
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+100    278 100    278   0      0 142.5k      0                              0
+{
+  "id": "33a99400-0da8-4c13-b697-118d4502dda9",
+  "email": "hahaha@mail.ru",
+  "name": "Name Lastname",
+  "avatar_url": null,
+  "role": "user",
+  "is_verified": false,
+  "oauth_provider": "keycloak",
+  "created_at": "2026-05-22T14:58:44.219809Z",
+  "updated_at": "2026-05-22T14:58:44.219809Z",
+  "last_login": null
+}
+```
