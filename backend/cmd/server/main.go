@@ -109,6 +109,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/auth/github/callback", userHandler.GithubCallback)
 	mux.HandleFunc("POST /api/check", visitorSessionHandler.CheckRequest)     // nginx
 	mux.HandleFunc("POST /api/behavior/{id}", behaviorHandler.SubmitBehavior) // JS
+	mux.HandleFunc("GET /api/csrf", middleware.CSRFTokenHandler)
 
 	// Authenticated endpoints (any valid JWT or API key)
 	mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))
@@ -193,6 +194,13 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	handler = corsMiddleware(handler)
 	handler = middleware.CSPMiddleware(handler)
 	handler = middleware.RequestIDMiddleware(handler)
+	handler = middleware.CSRFMiddleware([]string{
+		"/api/login",
+		"/api/users",
+		"/api/check",
+		"/api/behavior/",
+		"/api/auth/",
+	})(handler)
 
 	// Rate limiting rules
 	rules := []middleware.Rule{
