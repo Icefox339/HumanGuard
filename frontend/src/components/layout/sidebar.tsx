@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
+import { useAuthStore } from '@/app/store/auth-store';
 
-const links = [
+const mainLinks = [
   ['Dashboard', '/dashboard'],
   ['Sites', '/sites'],
   ['Files', '/files'],
@@ -9,8 +10,12 @@ const links = [
   ['Users', '/admin/users']
 ];
 
-export const Sidebar = () => (
-  <aside className="theme-surface w-64 border-r theme-border p-4">
+export const Sidebar = () => {
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
+
+  return (
+    <aside className="theme-surface w-64 border-r theme-border p-4">
     <h1 className="mb-6 flex items-center gap-2 text-xl font-semibold text-[rgb(var(--text-primary))]">
       <span className="brand-icon" aria-hidden="true">
         <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -21,7 +26,7 @@ export const Sidebar = () => (
       HumanGuard
     </h1>
     <nav className="flex flex-col gap-1">
-      {links.map(([label, href]) => (
+      {mainLinks.map(([label, href]) => (
         <NavLink
           key={href}
           to={href}
@@ -34,6 +39,25 @@ export const Sidebar = () => (
           {label}
         </NavLink>
       ))}
+
+      {isAdmin && (
+        <>
+          <p className="mt-4 px-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--text-secondary))]">
+            Администрирование
+          </p>
+          <NavLink
+            to="/admin/users"
+            className={({ isActive }) =>
+              isActive
+                ? 'nav-link nav-link--active'
+                : 'nav-link'
+            }
+          >
+            Users
+          </NavLink>
+        </>
+      )}
     </nav>
   </aside>
-);
+  );
+};
