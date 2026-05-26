@@ -136,13 +136,13 @@ func startHTTPServer(store storage.Storage) *http.Server {
 		"google",
 		getEnv("GOOGLE_CLIENT_ID", ""),
 		getEnv("GOOGLE_CLIENT_SECRET", ""),
-		"http://localhost:8080/api/auth/google/callback",
+		getEnv("OAUTH_GOOGLE_REDIRECT_URL", "http://localhost:8080/api/auth/google/callback"),
 	)
 	githubOAuth := auth.NewOAuthService(
 		"github",
 		getEnv("GITHUB_CLIENT_ID", ""),
 		getEnv("GITHUB_CLIENT_SECRET", ""),
-		"http://localhost:8080/api/auth/github/callback",
+		getEnv("OAUTH_GITHUB_REDIRECT_URL", "http://localhost:8080/api/auth/github/callback"),
 	)
 
 	// Handlers
