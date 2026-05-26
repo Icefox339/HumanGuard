@@ -21,9 +21,9 @@ func EnsureCSRFCookie(w http.ResponseWriter, r *http.Request) string {
 		Name:     csrfCookieName,
 		Value:    token,
 		Path:     "/",
-		HttpOnly: false,
+		HttpOnly: true
 		SameSite: http.SameSiteStrictMode,
-		Secure:   false,
+		Secure:   true,
 		MaxAge:   24 * 60 * 60,
 	})
 	return token
