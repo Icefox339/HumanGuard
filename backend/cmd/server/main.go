@@ -13,8 +13,11 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -43,7 +46,51 @@ func connectToDatabase() storage.Storage {
 		log.Fatal("Database ping failed:", err)
 	}
 	log.Println("Database ping successful")
+
+	ensureDefaultAdmin(store)
+
 	return store
+}
+
+func ensureDefaultAdmin(store storage.Storage) {
+	adminEmail := strings.TrimSpace(getEnv("DEFAULT_ADMIN_EMAIL", ""))
+	adminPassword := getEnv("DEFAULT_ADMIN_PASSWORD", "")
+	adminName := strings.TrimSpace(getEnv("DEFAULT_ADMIN_NAME", "System Admin"))
+	if adminEmail == "" || adminPassword == "" {
+		log.Println("Default admin bootstrap skipped: DEFAULT_ADMIN_EMAIL or DEFAULT_ADMIN_PASSWORD is empty")
+		return
+	}
+
+	if len(adminPassword) < 8 {
+		log.Printf("Default admin bootstrap skipped: password for %s is shorter than 8 chars", adminEmail)
+		return
+	}
+
+	ctx := context.Background()
+	if _, err := store.GetUserByEmail(ctx, adminEmail); err == nil {
+		log.Printf("Default admin already exists: %s", adminEmail)
+		return
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Default admin bootstrap failed: password hash error: %v", err)
+		return
+	}
+
+	adminUser := &storage.User{
+		Email:        adminEmail,
+		Name:         adminName,
+		Role:         "admin",
+		PasswordHash: string(passwordHash),
+		IsVerified:   true,
+	}
+	if err := store.CreateUser(ctx, adminUser); err != nil {
+		log.Printf("Default admin bootstrap failed: create user error: %v", err)
+		return
+	}
+
+	log.Printf("Default admin created: %s", adminEmail)
 }
 
 func startHTTPServer(store storage.Storage) *http.Server {
@@ -111,6 +158,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/auth/github/callback", userHandler.GithubCallback)
 	mux.HandleFunc("POST /api/check", visitorSessionHandler.CheckRequest)     // nginx
 	mux.HandleFunc("POST /api/behavior/{id}", behaviorHandler.SubmitBehavior) // JS
+	mux.HandleFunc("GET /api/csrf", middleware.CSRFTokenHandler)
 
 	// Authenticated endpoints (any valid JWT or API key)
 	mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))
@@ -202,6 +250,13 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	handler = corsMiddleware(handler)
 	handler = middleware.CSPMiddleware(handler)
 	handler = middleware.RequestIDMiddleware(handler)
+	handler = middleware.CSRFMiddleware([]string{
+		"/api/login",
+		"/api/users",
+		"/api/check",
+		"/api/behavior/",
+		"/api/auth/",
+	})(handler)
 
 	// Rate limiting rules
 	rules := []middleware.Rule{
@@ -282,10 +337,17 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+	allowedOrigin := getEnv("CORS_ORIGIN", "http://localhost:5173")
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if origin != "" && origin == allowedOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-CSRF-Token")
 		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)

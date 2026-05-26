@@ -41,6 +41,20 @@ body {
   color: rgb(var(--text-primary));
 }
 
+#root {
+  min-height: 100vh;
+}
+
+@media (max-width: 767px) {
+  html {
+    font-size: 14px;
+  }
+
+  .app-shell {
+    min-width: 320px;
+  }
+}
+
 .app-shell {
   background: rgb(var(--bg-main));
 }
