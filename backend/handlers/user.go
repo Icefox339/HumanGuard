@@ -67,7 +67,9 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	if err := json.NewEncoder(w).Encode(users); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 // GET /api/users/{id}
@@ -81,7 +83,9 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	user.PasswordHash = ""
 	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -94,29 +98,40 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
 	if req.Email == "" || req.Password == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "email and password required"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "email and password required"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
 	if len(req.Password) < 8 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "password too short (min 8)"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "password too short (min 8)"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
-	exists, _ := h.storage.CheckEmailExists(r.Context(), req.Email)
+	exists, err := h.storage.CheckEmailExists(r.Context(), req.Email)
+	if err != nil {
+		exists = false
+	}
 	if exists {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"error": "email already exists"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "email already exists"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
@@ -124,11 +139,21 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to hash password"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "failed to hash password"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
-	totpSecret := h.totp.GenerateSecret()
+	totpSecret, err := h.totp.GenerateSecret()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "failed to generate TOTP secret"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
+		return
+	}
 
 	user := &storage.User{
 		Email:        req.Email,
@@ -142,17 +167,21 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		log.Printf("CreateUser error: %v", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to create user"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "failed to create user"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"user":        user,
 		"totp_secret": totpSecret,
 		"qr_code_url": h.totp.GenerateQRURL(req.Email, totpSecret),
-	})
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -165,14 +194,18 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
 	if req.Email == "" || req.Password == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "email and password required"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "email and password required"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
@@ -180,14 +213,18 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid credentials"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid credentials"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid credentials"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid credentials"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
@@ -195,13 +232,17 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		if req.TOTPCode == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": "totp_code required"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": "totp_code required"}); err != nil {
+				log.Printf("Failed to encode response: %v", err)
+			}
 			return
 		}
 		if !h.totp.ValidateCode(*user.TOTPSecret, req.TOTPCode) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "invalid totp code"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid totp code"}); err != nil {
+				log.Printf("Failed to encode response: %v", err)
+			}
 			return
 		}
 	}
@@ -212,21 +253,27 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to generate token"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "failed to generate token"}); err != nil {
+			log.Printf("Failed to encode response: %v", err)
+		}
 		return
 	}
 
-	h.storage.UpdateLastLogin(r.Context(), user.ID)
+	if err := h.storage.UpdateLastLogin(r.Context(), user.ID); err != nil {
+		log.Printf("Failed to update last login for user %s: %v", user.ID, err)
+	}
 
 	user.PasswordHash = ""
 	user.TOTPSecret = nil
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"token": token,
 		"user":  user,
-	})
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -245,20 +292,27 @@ func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func generateOAuthState() string {
+func generateOAuthState() (string, error) {
 	b := make([]byte, 32)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func (h *UserHandler) KeycloakLogin(w http.ResponseWriter, r *http.Request) {
-	state := generateOAuthState()
+	state, err := generateOAuthState()
+	if err != nil {
+		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
 		Value:    state,
 		Path:     "/",
 		MaxAge:   600,
 		HttpOnly: true,
+		Secure:   true,
 	})
 	url := h.oauth.GetAuthURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
@@ -349,7 +403,9 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	user.PasswordHash = ""
 	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -375,7 +431,9 @@ func (h *UserHandler) GetUserByEmail(w http.ResponseWriter, r *http.Request) {
 	user.PasswordHash = ""
 	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
@@ -425,7 +483,9 @@ func (h *UserHandler) CheckEmailExists(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"exists": exists})
+	if err := json.NewEncoder(w).Encode(map[string]bool{"exists": exists}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (h *UserHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
@@ -471,7 +531,9 @@ func (h *UserHandler) GetUserByOAuth(w http.ResponseWriter, r *http.Request) {
 	user.PasswordHash = ""
 	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (h *UserHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
@@ -492,17 +554,24 @@ func (h *UserHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	user.PasswordHash = ""
 	user.TOTPSecret = nil
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (h *UserHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
-	state := generateOAuthState()
+	state, err := generateOAuthState()
+	if err != nil {
+		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
 		Value:    state,
 		Path:     "/",
 		MaxAge:   600,
 		HttpOnly: true,
+		Secure:   true,
 	})
 	url := h.googleOAuth.GetAuthURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
@@ -549,13 +618,18 @@ func (h *UserHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) GithubLogin(w http.ResponseWriter, r *http.Request) {
-	state := generateOAuthState()
+	state, err := generateOAuthState()
+	if err != nil {
+		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
 		Value:    state,
 		Path:     "/",
 		MaxAge:   600,
 		HttpOnly: true,
+		Secure:   true,
 	})
 	url := h.githubOAuth.GetAuthURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
@@ -592,11 +666,8 @@ func (h *UserHandler) GithubCallback(w http.ResponseWriter, r *http.Request) {
 	jwtToken, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
-
 	user.PasswordHash = ""
 	user.TOTPSecret = nil
-
 	h.redirectOAuthSuccess(w, r, jwtToken, user)
 }

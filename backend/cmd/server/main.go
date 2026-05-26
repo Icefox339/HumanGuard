@@ -13,22 +13,11 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
-	"context"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"humanguard/auth"
-	"humanguard/handlers"
-	"humanguard/metrics"
-	"humanguard/middleware"
-	"humanguard/storage"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"regexp"
-	"syscall"
-	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -67,6 +56,9 @@ func connectToDatabase() storage.Storage {
 		log.Fatal("Database ping failed:", err)
 	}
 	log.Println("Database ping successful")
+
+	ensureDefaultAdmin(store)
+
 	return store
 	store, err := storage.NewStorage(cfg)
 	if err != nil {
@@ -77,7 +69,92 @@ func connectToDatabase() storage.Storage {
 		log.Fatal("Database ping failed:", err)
 	}
 	log.Println("Database ping successful")
+
+	ensureDefaultAdmin(store)
+
 	return store
+}
+
+func ensureDefaultAdmin(store storage.Storage) {
+	adminEmail := strings.TrimSpace(getEnv("DEFAULT_ADMIN_EMAIL", ""))
+	adminPassword := getEnv("DEFAULT_ADMIN_PASSWORD", "")
+	adminName := strings.TrimSpace(getEnv("DEFAULT_ADMIN_NAME", "System Admin"))
+	if adminEmail == "" || adminPassword == "" {
+		log.Println("Default admin bootstrap skipped: DEFAULT_ADMIN_EMAIL or DEFAULT_ADMIN_PASSWORD is empty")
+		return
+	}
+
+	if len(adminPassword) < 8 {
+		log.Printf("Default admin bootstrap skipped: password for %s is shorter than 8 chars", adminEmail)
+		return
+	}
+
+	ctx := context.Background()
+	if _, err := store.GetUserByEmail(ctx, adminEmail); err == nil {
+		log.Printf("Default admin already exists: %s", adminEmail)
+		return
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Default admin bootstrap failed: password hash error: %v", err)
+		return
+	}
+
+	adminUser := &storage.User{
+		Email:        adminEmail,
+		Name:         adminName,
+		Role:         "admin",
+		PasswordHash: string(passwordHash),
+		IsVerified:   true,
+	}
+	if err := store.CreateUser(ctx, adminUser); err != nil {
+		log.Printf("Default admin bootstrap failed: create user error: %v", err)
+		return
+	}
+
+	log.Printf("Default admin created: %s", adminEmail)
+}
+
+func ensureDefaultAdmin(store storage.Storage) {
+	adminEmail := strings.TrimSpace(getEnv("DEFAULT_ADMIN_EMAIL", ""))
+	adminPassword := getEnv("DEFAULT_ADMIN_PASSWORD", "")
+	adminName := strings.TrimSpace(getEnv("DEFAULT_ADMIN_NAME", "System Admin"))
+	if adminEmail == "" || adminPassword == "" {
+		log.Println("Default admin bootstrap skipped: DEFAULT_ADMIN_EMAIL or DEFAULT_ADMIN_PASSWORD is empty")
+		return
+	}
+
+	if len(adminPassword) < 8 {
+		log.Printf("Default admin bootstrap skipped: password for %s is shorter than 8 chars", adminEmail)
+		return
+	}
+
+	ctx := context.Background()
+	if _, err := store.GetUserByEmail(ctx, adminEmail); err == nil {
+		log.Printf("Default admin already exists: %s", adminEmail)
+		return
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Default admin bootstrap failed: password hash error: %v", err)
+		return
+	}
+
+	adminUser := &storage.User{
+		Email:        adminEmail,
+		Name:         adminName,
+		Role:         "admin",
+		PasswordHash: string(passwordHash),
+		IsVerified:   true,
+	}
+	if err := store.CreateUser(ctx, adminUser); err != nil {
+		log.Printf("Default admin bootstrap failed: create user error: %v", err)
+		return
+	}
+
+	log.Printf("Default admin created: %s", adminEmail)
 }
 
 func startHTTPServer(store storage.Storage) *http.Server {
@@ -87,18 +164,11 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	// Health check
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
-	})
-	// Health check
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			log.Printf("Failed to write health response: %v", err)
+		}
 	})
 
-	// Core services
-	jwtService := auth.NewJWTService(getEnv("JWT_SECRET", "super-secret-key"))
-	totpService := auth.NewTOTPService()
-	userSessionManager := auth.NewUserSessionManager(24 * time.Hour)
 	// Core services
 	jwtService := auth.NewJWTService(getEnv("JWT_SECRET", "super-secret-key"))
 	totpService := auth.NewTOTPService()
@@ -109,13 +179,6 @@ func startHTTPServer(store storage.Storage) *http.Server {
 		getEnv("OAUTH_CLIENT_ID", "humanguard"),
 		getEnv("OAUTH_CLIENT_SECRET", "1meWH6qPeEhd17APBADgo20Mth1J5pzP"),
 		getEnv("KEYCLOAK_REDIRECT_URL", "http://localhost:8080/api/auth/keycloak/callback"),
-	)
-
-	googleOAuth := auth.NewOAuthService(
-		"google",
-		getEnv("GOOGLE_CLIENT_ID", ""),
-		getEnv("GOOGLE_CLIENT_SECRET", ""),
-		"http://localhost:8080/api/auth/google/callback",
 	)
 	googleOAuth := auth.NewOAuthService(
 		"google",
@@ -187,8 +250,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.HandleFunc("GET /api/auth/github/callback", userHandler.GithubCallback)
 	mux.HandleFunc("POST /api/check", visitorSessionHandler.CheckRequest)     // nginx
 	mux.HandleFunc("POST /api/behavior/{id}", behaviorHandler.SubmitBehavior) // JS
-	mux.HandleFunc("POST /api/check", visitorSessionHandler.CheckRequest)     // nginx
-	mux.HandleFunc("POST /api/behavior/{id}", behaviorHandler.SubmitBehavior) // JS
+	mux.HandleFunc("GET /api/csrf", middleware.CSRFTokenHandler)
 
 	// Authenticated endpoints (any valid JWT or API key)
 	mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))
@@ -274,13 +336,20 @@ func startHTTPServer(store storage.Storage) *http.Server {
 		minioClient, err := storage.NewMinIOClient(endpoint, accessKey, secretKey, bucket, useSSL)
 		if err != nil {
 			log.Printf("Warning: Failed to connect to MinIO: %v, falling back to local storage", err)
-			fs = storage.NewLocalS3("./data/uploads")
+			fs, err = storage.NewLocalS3("./data/uploads")
+			if err != nil {
+				log.Printf("Warning: Failed to create local storage: %v", err)
+			}
 		} else {
 			fs = minioClient
 			log.Println("Connected to MinIO storage")
 		}
 	} else {
-		fs = storage.NewLocalS3("./data/uploads")
+		var err error
+		fs, err = storage.NewLocalS3("./data/uploads")
+		if err != nil {
+			log.Printf("Warning: Failed to create local storage: %v", err)
+		}
 		log.Println("Using local file storage")
 	}
 
@@ -297,13 +366,20 @@ func startHTTPServer(store storage.Storage) *http.Server {
 		minioClient, err := storage.NewMinIOClient(endpoint, accessKey, secretKey, bucket, useSSL)
 		if err != nil {
 			log.Printf("Warning: Failed to connect to MinIO: %v, falling back to local storage", err)
-			fs = storage.NewLocalS3("./data/uploads")
+			fs, err = storage.NewLocalS3("./data/uploads")
+			if err != nil {
+				log.Printf("Warning: Failed to create local storage: %v", err)
+			}
 		} else {
 			fs = minioClient
 			log.Println("Connected to MinIO storage")
 		}
 	} else {
-		fs = storage.NewLocalS3("./data/uploads")
+		var err error
+		fs, err = storage.NewLocalS3("./data/uploads")
+		if err != nil {
+			log.Printf("Warning: Failed to create local storage: %v", err)
+		}
 		log.Println("Using local file storage")
 	}
 
@@ -344,28 +420,14 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	handler = corsMiddleware(handler)
 	handler = middleware.CSPMiddleware(handler)
 	handler = middleware.RequestIDMiddleware(handler)
-	// Global middleware chain
-	handler := http.Handler(mux)
-	handler = loggingMiddleware(handler)
-	handler = corsMiddleware(handler)
-	handler = middleware.CSPMiddleware(handler)
-	handler = middleware.RequestIDMiddleware(handler)
+	handler = middleware.CSRFMiddleware([]string{
+		"/api/login",
+		"/api/users",
+		"/api/check",
+		"/api/behavior/",
+		"/api/auth/",
+	})(handler)
 
-	// Rate limiting rules
-	rules := []middleware.Rule{
-		{Pattern: regexp.MustCompile(`^/api/login$`), Limit: 5.0 / 60.0, Burst: 5},
-		{Pattern: regexp.MustCompile(`^/api/users$`), Limit: 10.0 / 60.0, Burst: 10},
-		{Pattern: regexp.MustCompile(`^/api/check$`), Limit: 100.0 / 60.0, Burst: 50},
-		{Pattern: regexp.MustCompile(`^/api/behavior/`), Limit: 300.0 / 60.0, Burst: 100},
-		{Pattern: regexp.MustCompile(`^/api/files/upload`), Limit: 10.0 / 60.0, Burst: 5},
-		{Pattern: regexp.MustCompile(`^/api/files/`), Limit: 30.0 / 60.0, Burst: 20},
-		{Pattern: regexp.MustCompile(`^/api/sites`), Limit: 30.0 / 60.0, Burst: 15},
-		{Pattern: regexp.MustCompile(`^/api/keys`), Limit: 10.0 / 60.0, Burst: 5},
-		{Pattern: regexp.MustCompile(`^/api/admin/`), Limit: 20.0 / 60.0, Burst: 10},
-		{Pattern: regexp.MustCompile(`^/api/me`), Limit: 30.0 / 60.0, Burst: 15},
-	}
-	rateLimiter := middleware.NewRateLimiter(rules)
-	handler = rateLimiter.Middleware(handler)
 	// Rate limiting rules
 	rules := []middleware.Rule{
 		{Pattern: regexp.MustCompile(`^/api/login$`), Limit: 5.0 / 60.0, Burst: 5},
@@ -496,21 +558,17 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+	allowedOrigin := getEnv("CORS_ORIGIN", "http://localhost:5173")
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
-		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
+		origin := r.Header.Get("Origin")
+		if origin != "" && origin == allowedOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
-		next.ServeHTTP(w, r)
-	})
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-CSRF-Token")
 		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)

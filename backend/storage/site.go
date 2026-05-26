@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -25,7 +26,11 @@ func (s *storage) CreateSite(ctx context.Context, site *Site) error {
 
 	var settingsJSON []byte
 	if site.Settings != nil {
-		settingsJSON, _ = json.Marshal(site.Settings)
+		var err error
+		settingsJSON, err = json.Marshal(site.Settings)
+		if err != nil {
+			return fmt.Errorf("failed to marshal settings: %w", err)
+		}
 	} else {
 		settingsJSON = []byte("{}")
 	}
@@ -95,7 +100,9 @@ func (s *storage) GetSite(ctx context.Context, id string) (*Site, error) {
 
 	if len(settingsJSON) > 0 {
 		var settings ModuleSettings
-		if err := json.Unmarshal(settingsJSON, &settings); err == nil {
+		if err := json.Unmarshal(settingsJSON, &settings); err != nil {
+			log.Printf("Failed to unmarshal settings for site %s: %v", id, err)
+		} else {
 			site.Settings = &settings
 		}
 	}
@@ -136,7 +143,9 @@ func (s *storage) GetSiteByDomain(ctx context.Context, domain string) (*Site, er
 
 	if len(settingsJSON) > 0 {
 		var settings ModuleSettings
-		if err := json.Unmarshal(settingsJSON, &settings); err == nil {
+		if err := json.Unmarshal(settingsJSON, &settings); err != nil {
+			log.Printf("Failed to unmarshal settings for site domain %s: %v", domain, err)
+		} else {
 			site.Settings = &settings
 		}
 	}
@@ -149,7 +158,11 @@ func (s *storage) UpdateSite(ctx context.Context, site *Site) error {
 
 	var settingsJSON []byte
 	if site.Settings != nil {
-		settingsJSON, _ = json.Marshal(site.Settings)
+		var err error
+		settingsJSON, err = json.Marshal(site.Settings)
+		if err != nil {
+			return fmt.Errorf("failed to marshal settings: %w", err)
+		}
 	}
 
 	query := `
@@ -176,7 +189,10 @@ func (s *storage) UpdateSite(ctx context.Context, site *Site) error {
 		return fmt.Errorf("failed to update site: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
 		return ErrSiteNotFound
 	}
@@ -189,14 +205,21 @@ func (s *storage) DeleteSite(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}()
 
 	result, err := tx.ExecContext(ctx, `DELETE FROM sites WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete site: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
 		return ErrSiteNotFound
 	}
@@ -222,7 +245,10 @@ func (s *storage) UpdateSiteStatus(ctx context.Context, siteID, status string) e
 		return fmt.Errorf("failed to update site status: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
 		return ErrSiteNotFound
 	}
@@ -267,12 +293,18 @@ func (s *storage) GetSitesByUserID(ctx context.Context, userID string) ([]*Site,
 
 		if len(settingsJSON) > 0 {
 			var settings ModuleSettings
-			if err := json.Unmarshal(settingsJSON, &settings); err == nil {
+			if err := json.Unmarshal(settingsJSON, &settings); err != nil {
+				log.Printf("Failed to unmarshal settings for site %s: %v", site.ID, err)
+			} else {
 				site.Settings = &settings
 			}
 		}
 
 		sites = append(sites, &site)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate sites: %w", err)
 	}
 
 	return sites, nil

@@ -1,4 +1,3 @@
-// backend/middleware/ratelimit.go
 package middleware
 
 import (
@@ -55,7 +54,7 @@ func (rl *RateLimiter) getLimiter(ip, path string) *rate.Limiter {
 		return v.limiter
 	}
 
-	var limit rate.Limit = 100.0 / 60.0 
+	var limit rate.Limit = 100.0 / 60.0
 	burst := 20
 
 	for _, rule := range rl.rules {
@@ -68,7 +67,7 @@ func (rl *RateLimiter) getLimiter(ip, path string) *rate.Limiter {
 
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	limiter := rate.NewLimiter(limit, burst)
 	rl.visitors[key] = &visitor{
 		limiter:  limiter,
@@ -97,7 +96,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		ip := getRealIP(r)
 		path := r.URL.Path
 		limiter := rl.getLimiter(ip, path)
@@ -106,18 +105,20 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			metrics.RateLimitExceeded.Inc()
 			requestID := GetRequestID(r.Context())
 			if requestID == "" {
-                requestID = "unknown"
-            }
+				requestID = "unknown"
+			}
 			log.Printf("[%s] Rate limit exceeded for IP: %s, path: %s", requestID, ip, path)
-			
+
 			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(limiter.Burst()))
 			w.Header().Set("X-RateLimit-Remaining", "0")
 			w.Header().Set("Retry-After", "60")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
-			json.NewEncoder(w).Encode(map[string]string{
+			if err := json.NewEncoder(w).Encode(map[string]string{
 				"error": "Too many requests. Please try again later.",
-			})
+			}); err != nil {
+				log.Printf("[%s] Failed to encode rate limit response: %v", requestID, err)
+			}
 			return
 		}
 

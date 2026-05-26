@@ -37,6 +37,7 @@ services:
       - "9090:9090"
     networks:
       - monitoring
+      - humanguard_backend_network
 
   # Сервис для визуализации данных
   grafana:
@@ -59,6 +60,8 @@ services:
 networks:
   monitoring:
     driver: bridge
+  humanguard_backend_network:
+    external: true
 
 volumes:
   prometheus_data:

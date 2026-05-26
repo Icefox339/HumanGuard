@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"log"
 )
 
 func (s *storage) GetSiteSettings(ctx context.Context, siteID string) (*ModuleSettings, error) {
@@ -15,14 +16,20 @@ func (s *storage) GetSiteSettings(ctx context.Context, siteID string) (*ModuleSe
 	}
 
 	var settings ModuleSettings
-	json.Unmarshal(settingsJSON, &settings)
+	if err := json.Unmarshal(settingsJSON, &settings); err != nil {
+		log.Printf("Failed to unmarshal settings for site %s: %v", siteID, err)
+		return getDefaultSettings(), nil
+	}
 	return &settings, nil
 }
 
 func (s *storage) UpdateSiteSettings(ctx context.Context, siteID string, settings *ModuleSettings) error {
-	settingsJSON, _ := json.Marshal(settings)
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
 	query := `UPDATE sites SET settings = $1, updated_at = NOW() WHERE id = $2`
-	_, err := s.db.ExecContext(ctx, query, settingsJSON, siteID)
+	_, err = s.db.ExecContext(ctx, query, settingsJSON, siteID)
 	return err
 }
 

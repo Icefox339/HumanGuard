@@ -2,13 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
+	"net"
 	"net/http"
 	"strconv"
-	"net"
-	"humanguard/storage"
-	"humanguard/metrics"
 	"strings"
+
 	"github.com/google/uuid"
+
+	"humanguard/metrics"
+	"humanguard/storage"
 )
 
 type VisitorSessionHandler struct {
@@ -20,18 +23,18 @@ func NewVisitorSessionHandler(store storage.Storage) *VisitorSessionHandler {
 }
 
 func getRealIP(r *http.Request) string {
-    if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-        ips := strings.Split(xff, ",")
-        return strings.TrimSpace(ips[0])
-    }
-    if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
-        return xrip
-    }
-    host, _, _ := net.SplitHostPort(r.RemoteAddr)
-    if host == "" {
-        return r.RemoteAddr
-    }
-    return host
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ips := strings.Split(xff, ",")
+		return strings.TrimSpace(ips[0])
+	}
+	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
+		return xrip
+	}
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if host == "" {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 func (h *VisitorSessionHandler) GetSessionsBySite(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +52,10 @@ func (h *VisitorSessionHandler) GetSessionsBySite(w http.ResponseWriter, r *http
 		sessions = []*storage.ActiveSession{}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sessions)
+	if err := json.NewEncoder(w).Encode(sessions); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *VisitorSessionHandler) GetSuspiciousSessions(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +73,10 @@ func (h *VisitorSessionHandler) GetSuspiciousSessions(w http.ResponseWriter, r *
 		sessions = []*storage.ActiveSession{}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sessions)
+	if err := json.NewEncoder(w).Encode(sessions); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *VisitorSessionHandler) GetSessionStats(w http.ResponseWriter, r *http.Request) {
@@ -78,95 +87,102 @@ func (h *VisitorSessionHandler) GetSessionStats(w http.ResponseWriter, r *http.R
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Request) {
-    siteID := r.Header.Get("X-Site-ID")
-    if siteID == "" {
-        writeJSON(w, http.StatusBadRequest, map[string]string{
-            "error": "X-Site-ID header or site_id query param required",
-        })
-        return
-    }
-    
-    site, err := h.storage.GetSite(r.Context(), siteID)
-    if err != nil || site == nil {
-        writeJSON(w, http.StatusNotFound, map[string]string{
-            "error": "site not found",
-        })
-        return
-    }
-    
-    if site.Status != "active" {
-        writeJSON(w, http.StatusForbidden, map[string]string{
-            "error": "site is not active",
-        })
-        return
-    }
-    
-    sessionID := r.Header.Get("X-Session-ID")
-    if sessionID == "" {
-        cookie, err := r.Cookie("hg_session")
-        if err == nil {
-            sessionID = cookie.Value
-        }
-    }
-    
-    var session *storage.ActiveSession
-    
-    if sessionID == "" {
-        session = &storage.ActiveSession{
-            ID:        uuid.New().String(),
-            SiteID:    siteID,  
-            IP:        getRealIP(r),
-            UserAgent: r.UserAgent(),
-            IsActive:  true,
-            Metrics:   make(map[string]interface{}),
-        }
-        
-        if err := h.storage.CreateSession(r.Context(), session); err != nil {
-            writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create session"})
-            return
-        }
-        sessionID = session.ID
-        
-        http.SetCookie(w, &http.Cookie{
-            Name:     "hg_session",
-            Value:    sessionID,
-            Path:     "/",
-            HttpOnly: true,
-            SameSite: http.SameSiteLaxMode,
-        })
-    } else {
-        session, err = h.storage.GetSession(r.Context(), sessionID)
-        if err != nil || session == nil {
-            writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found or expired"})
-            return
-        }
-        
-        if session.SiteID != siteID {
-            writeJSON(w, http.StatusForbidden, map[string]string{
-                "error": "session does not belong to this site",
-            })
-            return
-        }
-    }
-    
-    h.storage.UpdateSessionActivity(r.Context(), sessionID)
-    
-    action := "allow"
-    if session.RiskScore >= 80 {
+	siteID := r.Header.Get("X-Site-ID")
+	if siteID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "X-Site-ID header or site_id query param required",
+		})
+		return
+	}
+
+	site, err := h.storage.GetSite(r.Context(), siteID)
+	if err != nil || site == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{
+			"error": "site not found",
+		})
+		return
+	}
+
+	if site.Status != "active" {
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"error": "site is not active",
+		})
+		return
+	}
+
+	sessionID := r.Header.Get("X-Session-ID")
+	if sessionID == "" {
+		cookie, err := r.Cookie("hg_session")
+		if err == nil {
+			sessionID = cookie.Value
+		}
+	}
+
+	var session *storage.ActiveSession
+
+	if sessionID == "" {
+		session = &storage.ActiveSession{
+			ID:        uuid.New().String(),
+			SiteID:    siteID,
+			IP:        getRealIP(r),
+			UserAgent: r.UserAgent(),
+			IsActive:  true,
+			Metrics:   make(map[string]interface{}),
+		}
+
+		if err := h.storage.CreateSession(r.Context(), session); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create session"})
+			return
+		}
+		sessionID = session.ID
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "hg_session",
+			Value:    sessionID,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   true,
+		})
+	} else {
+		session, err = h.storage.GetSession(r.Context(), sessionID)
+		if err != nil || session == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found or expired"})
+			return
+		}
+
+		if session.SiteID != siteID {
+			writeJSON(w, http.StatusForbidden, map[string]string{
+				"error": "session does not belong to this site",
+			})
+			return
+		}
+	}
+
+	if err := h.storage.UpdateSessionActivity(r.Context(), sessionID); err != nil {
+		// Логируем ошибку, но не прерываем выполнение, так как это не критично
+		log.Printf("Failed to update session activity for %s: %v", sessionID, err)
+	}
+
+	action := "allow"
+	if session.RiskScore >= 80 {
 		metrics.BlockedRequests.Inc()
-        action = "block"
-    } else if session.RiskScore >= 50 {
+		action = "block"
+	} else if session.RiskScore >= 50 {
 		metrics.CaptchaRequests.Inc()
-        action = "captcha"
-    }
-    
-    writeJSON(w, http.StatusOK, map[string]interface{}{
-        "action":      action,
-        "session_id":  sessionID,
-        "risk_score":  session.RiskScore,
-    })
+		action = "captcha"
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"action":     action,
+		"session_id": sessionID,
+		"risk_score": session.RiskScore,
+	})
 }
