@@ -339,7 +339,8 @@ func (h *UserHandler) KeycloakCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := uuid.New().String()
-	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, r.RemoteAddr, r.UserAgent())
+	realIP := getRealIP(r)
+	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, realIP, r.UserAgent())
 	jwtToken, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -623,7 +624,8 @@ func (h *UserHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := uuid.New().String()
-	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, r.RemoteAddr, r.UserAgent())
+	realIP := getRealIP(r)
+	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, realIP, r.UserAgent())
 	jwtToken, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -681,7 +683,8 @@ func (h *UserHandler) GithubCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := uuid.New().String()
-	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, r.RemoteAddr, r.UserAgent())
+	realIP := getRealIP(r)
+	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, realIP, r.UserAgent())
 	jwtToken, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
