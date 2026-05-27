@@ -10,6 +10,40 @@ const truncate = (value?: string | null, max = 28) => {
   if (!value) return '—';
   return value.length > max ? `${value.slice(0, max)}...` : value;
 };
+
+const isDataImage = (value?: string | null) => {
+  if (!value) return false;
+  return /^data:image\//i.test(value.trim());
+};
+
+const isExternalUrl = (value?: string | null) => {
+  if (!value) return false;
+  return /^https?:\/\//i.test(value.trim());
+};
+
+const AvatarPreview = ({ avatarUrl }: { avatarUrl?: string | null }) => {
+  if (!avatarUrl) {
+    return <span className="text-[rgb(var(--text-secondary))]">—</span>;
+  }
+
+  if (isDataImage(avatarUrl)) {
+    return (
+      <img
+        src={avatarUrl}
+        alt="Аватар пользователя"
+        className="h-9 w-9 rounded-md border border-[rgb(var(--border))] object-cover"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  if (isExternalUrl(avatarUrl)) {
+    return <span className="block max-w-56 truncate" title={avatarUrl}>{truncate(avatarUrl, 40)}</span>;
+  }
+
+  return <span className="block max-w-56 truncate" title={avatarUrl}>{truncate(avatarUrl, 26)}</span>;
+};
 const getError = (error: unknown) => {
   const err = error as AxiosError<{ error?: string }>;
   return {
@@ -207,7 +241,9 @@ export const UsersTable = () => {
                   </td>
                   <td className="px-3 py-2">{user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
                   <td className="px-3 py-2">{user.last_login ? new Date(user.last_login).toLocaleString() : '—'}</td>
-                  <td className="max-w-56 truncate px-3 py-2" title={user.avatar_url || ''}>{editingUserId === user.id ? (user.avatar_url || '—') : truncate(user.avatar_url, 26)}</td>
+                  <td className="px-3 py-2">
+                    <AvatarPreview avatarUrl={editingUserId === user.id ? draftAvatarUrl : user.avatar_url} />
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
                       {user.role !== 'admin' && (
@@ -233,7 +269,23 @@ export const UsersTable = () => {
                     <td colSpan={8} className="px-3 py-3">
                       <div className="grid gap-2 md:grid-cols-2">
                         <input className="form-input rounded-lg px-3 py-2" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Имя" />
-                        <input className="form-input rounded-lg px-3 py-2" value={draftAvatarUrl} onChange={(e) => setDraftAvatarUrl(e.target.value)} placeholder="Avatar URL" />
+                        <div className="space-y-2">
+                          <input
+                            className="form-input w-full rounded-lg px-3 py-2"
+                            value={isDataImage(draftAvatarUrl) ? '' : draftAvatarUrl}
+                            onChange={(e) => setDraftAvatarUrl(e.target.value)}
+                            placeholder="Avatar URL"
+                          />
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-[rgb(var(--text-secondary))]">Превью:</span>
+                            <AvatarPreview avatarUrl={draftAvatarUrl || user.avatar_url} />
+                          </div>
+                          {isDataImage(draftAvatarUrl) && (
+                            <p className="text-xs text-[rgb(var(--text-secondary))]">
+                              Загружен avatar в формате base64 (скрыт, чтобы не показывать длинную строку).
+                            </p>
+                          )}
+                        </div>
                         <select className="form-input rounded-lg px-3 py-2" value={draftRole} onChange={(e) => setDraftRole(e.target.value as 'user' | 'admin')}>
                           <option value="user">user</option>
                           <option value="admin">admin</option>
