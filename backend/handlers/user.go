@@ -246,9 +246,9 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	sessionID := uuid.New().String()
-	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, r.RemoteAddr, r.UserAgent())
+	realIP := getRealIP(r) 
+	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, realIP, r.UserAgent())
 	token, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
