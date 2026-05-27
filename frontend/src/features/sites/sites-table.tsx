@@ -9,6 +9,32 @@ const parseError = (error: unknown) => {
   return err.response?.data?.error ?? err.message ?? 'Unknown error';
 };
 
+const parseSiteSettings = (rawSettings: string): Record<string, unknown> | null => {
+  const trimmedSettings = rawSettings.trim();
+  if (!trimmedSettings) {
+    return null;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmedSettings);
+  } catch {
+    throw new Error('Настройки сайта должны быть валидным JSON.');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Настройки сайта должны быть JSON-объектом.');
+  }
+
+  const allowedTopLevelKeys = new Set(['collector', 'analyzer', 'reaction']);
+  const unsupportedKeys = Object.keys(parsed).filter((key) => !allowedTopLevelKeys.has(key));
+  if (unsupportedKeys.length > 0) {
+    throw new Error(`Неподдерживаемые ключи настроек: ${unsupportedKeys.join(', ')}.`);
+  }
+
+  return parsed as Record<string, unknown>;
+};
+
 export const SitesTable = () => {
   const user = useAuthStore((s) => s.user);
   const [sites, setSites] = useState<Site[]>([]);
@@ -42,6 +68,8 @@ export const SitesTable = () => {
 
     try {
       setError(null);
+      const parsedSettings = parseSiteSettings(createData.settings);
+
       const createdSite = await createSite({
         user_id: user.id,
         name: createData.name,
@@ -49,9 +77,7 @@ export const SitesTable = () => {
         origin_server: createData.origin_server
       });
 
-      const trimmedSettings = createData.settings.trim();
-      if (trimmedSettings) {
-        const parsedSettings = JSON.parse(trimmedSettings) as Record<string, unknown>;
+      if (parsedSettings) {
         await updateSiteSettings(createdSite.id, parsedSettings);
       }
 
@@ -81,7 +107,7 @@ export const SitesTable = () => {
         <input className="form-input w-full rounded-lg px-3 py-2" placeholder="Origin server (например http://localhost:3000)" value={createData.origin_server} onChange={(e) => setCreateData((p) => ({ ...p, origin_server: e.target.value }))} required />
         <textarea
           className="form-input min-h-28 w-full rounded-lg px-3 py-2"
-          placeholder={'Настройки сайта (JSON), например:\n{"strict_mode": true, "country_block": ["RU"]}'}
+          placeholder={'Настройки сайта (JSON), например:\n{"collector":{"enabled":true},"analyzer":{"enabled":true},"reaction":{"enabled":true}}'}
           value={createData.settings}
           onChange={(e) => setCreateData((p) => ({ ...p, settings: e.target.value }))}
         />
