@@ -19,6 +19,7 @@ import { SuspiciousSessionsPage } from '@/pages/app/suspicious-sessions-page';
 import { SiteStatsPage } from '@/pages/app/site-stats-page';
 import { NotFoundPage } from '@/pages/app/not-found-page';
 import { UsersPage } from '@/pages/admin/users-page';
+import { TokensPage } from '@/pages/admin/tokens-page';
 import { RouteErrorPage } from '@/pages/app/route-error-page';
 import { ApiKeysPage } from '@/pages/app/api-keys-page';
 
@@ -61,6 +62,14 @@ export const router = createBrowserRouter([
         element: (
           <RoleRoute requiredRole="admin">
             <UsersPage />
+          </RoleRoute>
+        )
+      },
+      {
+        path: 'admin/tokens',
+        element: (
+          <RoleRoute requiredRole="admin">
+            <TokensPage />
           </RoleRoute>
         )
       },

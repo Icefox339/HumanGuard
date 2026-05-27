@@ -64,6 +64,13 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               >
                 Users
               </NavLink>
+              <NavLink
+                to="/admin/tokens"
+                onClick={onClose}
+                className={({ isActive }) => (isActive ? 'nav-link nav-link--active' : 'nav-link')}
+              >
+                Token manager
+              </NavLink>
             </>
           )}
         </nav>
