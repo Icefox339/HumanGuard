@@ -7,6 +7,7 @@ import { AxiosError } from 'axios';
 import { useAuth } from '@/features/auth/use-auth';
 import { ErrorAlert } from '@/components/common/error-alert';
 import { API_URL } from '@/lib/constants';
+import { useAuthStore } from '@/app/store/auth-store';
 
 const schema = z.object({
   email: z.string().email('Введите корректный email'),
@@ -20,6 +21,7 @@ type OAuthProvider = 'keycloak' | 'google' | 'github';
 export const LoginForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [apiError, setApiError] = useState<string | null>(null);
   const { loginMutation } = useAuth();
   const {
@@ -29,16 +31,16 @@ export const LoginForm = () => {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    if (loginMutation.isSuccess) {
+    if (isAuthenticated) {
       navigate('/dashboard', { replace: true });
     }
-  }, [loginMutation.isSuccess, navigate]);
+  }, [isAuthenticated, navigate]);
 
 
 
   const [oauthPendingProvider, setOauthPendingProvider] = useState<OAuthProvider | null>(null);
   const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
-    { id: 'keycloak', label: 'Keycloak (локально)' },
+    { id: 'keycloak', label: 'Keycloak' },
     { id: 'google', label: 'Google' },
     { id: 'github', label: 'GitHub' }
   ];
@@ -67,10 +69,6 @@ export const LoginForm = () => {
     >
       <h1 className="text-2xl font-semibold text-[rgb(var(--text-primary))]">Вход</h1>
       {registrationHint && <p className="rounded-lg bg-emerald-100/80 p-2 text-sm text-emerald-700">{registrationHint}</p>}
-      <p className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--bg-main))] p-2 text-xs text-[rgb(var(--text-secondary))]">
-        Введите учетные данные пользователя, созданного на бэкенде.
-      </p>
-
       <div className="space-y-1.5">
         <input placeholder="Email" className="auth-input w-full rounded-lg px-3 py-2" {...register('email')} />
         <p className="auth-hint">Введите корректный email (например, name@example.com).</p>
