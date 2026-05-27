@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { AxiosError } from 'axios';
 import { useAuth } from '@/features/auth/use-auth';
 import { ErrorAlert } from '@/components/common/error-alert';
+import { API_URL } from '@/lib/constants';
 
 const schema = z.object({
   email: z.string().email('Введите корректный email'),
@@ -44,7 +45,7 @@ export const LoginForm = () => {
 
   const startOAuthLogin = (provider: OAuthProvider) => {
     setOauthPendingProvider(provider);
-    window.location.href = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8080'}/api/auth/${provider}/login`;
+    window.location.href = `${API_URL}/api/auth/${provider}/login`;
   };
 
   const registrationHint = location.state && typeof location.state === 'object' && 'message' in location.state
