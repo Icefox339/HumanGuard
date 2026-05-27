@@ -6,6 +6,7 @@ import (
 	"humanguard/auth"
 	"humanguard/storage"
 	"log"
+	"net"
 	"time"
 	"net/http"
 )
@@ -312,10 +313,15 @@ func (h *SiteHandler) AddToBlacklist(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    if req.IP == "" {
-        http.Error(w, "ip required", http.StatusBadRequest)
-        return
-    }
+	if req.IP == "" {
+		http.Error(w, "ip required", http.StatusBadRequest)
+		return
+	}
+
+	if parsed := net.ParseIP(req.IP); parsed == nil || parsed.To4() == nil {
+		http.Error(w, "invalid IPv4 address", http.StatusBadRequest)
+		return
+	}
     
     var expiresAt *time.Time
     if req.ExpiresIn != nil && *req.ExpiresIn > 0 {

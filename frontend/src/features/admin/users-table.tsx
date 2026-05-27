@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { getCurrentUser } from '@/api/auth';
-import { getUsers, updateUser, UserDetails } from '@/api/users';
+import { adminChangeUserPassword, getUsers, updateUser, UserDetails } from '@/api/users';
 import { AdminUserSession, deactivateUserSession, getAdminUserSessions } from '@/api/sessions';
 
+
+
+const truncate = (value?: string | null, max = 28) => {
+  if (!value) return '—';
+  return value.length > max ? `${value.slice(0, max)}...` : value;
+};
 const getError = (error: unknown) => {
   const err = error as AxiosError<{ error?: string }>;
   return {
@@ -20,6 +26,11 @@ export const UsersTable = () => {
   const [sessions, setSessions] = useState<AdminUserSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [deactivatingSessionId, setDeactivatingSessionId] = useState<string | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState('');
+  const [draftRole, setDraftRole] = useState<'user' | 'admin'>('user');
+  const [draftAvatarUrl, setDraftAvatarUrl] = useState('');
+  const [draftPassword, setDraftPassword] = useState('');
 
   const loadUsers = async () => {
     setLoading(true);
@@ -94,6 +105,49 @@ export const UsersTable = () => {
     }
   };
 
+
+  const startEdit = (user: UserDetails) => {
+    setEditingUserId(user.id);
+    setDraftName(user.name ?? '');
+    setDraftRole(user.role === 'admin' ? 'admin' : 'user');
+    setDraftAvatarUrl(user.avatar_url ?? '');
+    setDraftPassword('');
+    setError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingUserId(null);
+    setDraftName('');
+    setDraftRole('user');
+    setDraftAvatarUrl('');
+    setDraftPassword('');
+  };
+
+  const saveEdit = async (user: UserDetails) => {
+    setUpdatingUserId(user.id);
+    setError(null);
+
+    try {
+      const updated = await updateUser(user.id, {
+        name: draftName.trim(),
+        role: draftRole,
+        avatar_url: draftAvatarUrl.trim()
+      });
+
+      if (draftPassword.trim()) {
+        await adminChangeUserPassword(user.id, { new_password: draftPassword.trim() });
+      }
+
+      setUsers((prev) => prev.map((item) => (item.id === user.id ? updated : item)));
+      cancelEdit();
+    } catch (e) {
+      const err = getError(e);
+      setError(`Не удалось обновить пользователя: ${err.message}`);
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   const deactivateSession = async (session: AdminUserSession) => {
     setDeactivatingSessionId(session.id);
     setError(null);
@@ -137,34 +191,65 @@ export const UsersTable = () => {
                 <th className="px-3 py-2">Роль</th>
                 <th className="px-3 py-2">Создан</th>
                 <th className="px-3 py-2">Последний вход</th>
+                <th className="px-3 py-2">Аватар</th>
                 <th className="px-3 py-2">Действия</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
-                <tr key={user.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
+                <Fragment key={user.id}>
+                <tr className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
                   <td className="max-w-56 truncate px-3 py-2" title={user.id}>{user.id}</td>
-                  <td className="px-3 py-2">{user.email}</td>
-                  <td className="px-3 py-2">{user.name || '—'}</td>
+                  <td className="max-w-56 truncate px-3 py-2" title={user.email}>{editingUserId === user.id ? user.email : truncate(user.email, 30)}</td>
+                  <td className="max-w-56 truncate px-3 py-2" title={user.name || ''}>{editingUserId === user.id ? (user.name || '—') : truncate(user.name, 26)}</td>
                   <td className="px-3 py-2">
                     <span className="rounded-full bg-[rgb(var(--bg-main))] px-2 py-0.5 text-xs font-medium text-[rgb(var(--text-secondary))]">{user.role}</span>
                   </td>
                   <td className="px-3 py-2">{user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
                   <td className="px-3 py-2">{user.last_login ? new Date(user.last_login).toLocaleString() : '—'}</td>
+                  <td className="max-w-56 truncate px-3 py-2" title={user.avatar_url || ''}>{editingUserId === user.id ? (user.avatar_url || '—') : truncate(user.avatar_url, 26)}</td>
                   <td className="px-3 py-2">
-                    {user.role === 'admin' ? (
-                      <span className="text-xs text-[rgb(var(--text-secondary))]">Уже админ</span>
-                    ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {user.role !== 'admin' && (
+                        <button
+                          className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))] disabled:opacity-60"
+                          disabled={updatingUserId === user.id}
+                          onClick={() => void promoteToAdmin(user)}
+                        >
+                          {updatingUserId === user.id ? 'Назначаем...' : 'Сделать админом'}
+                        </button>
+                      )}
                       <button
-                        className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))] disabled:opacity-60"
-                        disabled={updatingUserId === user.id}
-                        onClick={() => void promoteToAdmin(user)}
+                        className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))]"
+                        onClick={() => startEdit(user)}
                       >
-                        {updatingUserId === user.id ? 'Назначаем...' : 'Сделать админом'}
+                        Редактировать
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
+                {editingUserId === user.id && (
+                  <tr className="border-t border-[rgb(var(--border))] bg-[rgb(var(--bg-main))]">
+                    <td colSpan={8} className="px-3 py-3">
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <input className="form-input rounded-lg px-3 py-2" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Имя" />
+                        <input className="form-input rounded-lg px-3 py-2" value={draftAvatarUrl} onChange={(e) => setDraftAvatarUrl(e.target.value)} placeholder="Avatar URL" />
+                        <select className="form-input rounded-lg px-3 py-2" value={draftRole} onChange={(e) => setDraftRole(e.target.value as 'user' | 'admin')}>
+                          <option value="user">user</option>
+                          <option value="admin">admin</option>
+                        </select>
+                        <input className="form-input rounded-lg px-3 py-2" type="password" value={draftPassword} onChange={(e) => setDraftPassword(e.target.value)} placeholder="Новый пароль (необязательно)" />
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <button className="interactive-chip theme-button px-3 py-1.5 text-xs" disabled={updatingUserId === user.id} onClick={() => void saveEdit(user)}>
+                          {updatingUserId === user.id ? 'Сохраняем...' : 'Сохранить'}
+                        </button>
+                        <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-xs" onClick={cancelEdit}>Отмена</button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

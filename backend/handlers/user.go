@@ -378,8 +378,9 @@ func getEnvOrDefault(key, defaultValue string) string {
 func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var req struct {
-		Name string `json:"name"`
-		Role string `json:"role"`
+		Name      string `json:"name"`
+		Role      string `json:"role"`
+		AvatarURL string `json:"avatar_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -395,6 +396,10 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Role != "" {
 		user.Role = req.Role
+	}
+	if req.AvatarURL != "" {
+		avatarURL := req.AvatarURL
+		user.AvatarURL = &avatarURL
 	}
 	if err := h.storage.UpdateUser(r.Context(), user); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -446,8 +451,12 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.OldPassword == "" || req.NewPassword == "" {
-		http.Error(w, "Old password and new password are required", http.StatusBadRequest)
+	if req.NewPassword == "" {
+		http.Error(w, "New password is required", http.StatusBadRequest)
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		http.Error(w, "Password too short (min 8)", http.StatusBadRequest)
 		return
 	}
 	user, err := h.storage.GetUserByID(r.Context(), id)
@@ -455,9 +464,19 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
-		http.Error(w, "Invalid old password", http.StatusUnauthorized)
-		return
+	requesterID := auth.GetUserID(r.Context())
+	requesterRole := auth.GetRole(r.Context())
+	isAdminUpdate := requesterRole == "admin" && requesterID != "" && requesterID != id
+
+	if !isAdminUpdate {
+		if req.OldPassword == "" {
+			http.Error(w, "Old password is required", http.StatusBadRequest)
+			return
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+			http.Error(w, "Invalid old password", http.StatusUnauthorized)
+			return
+		}
 	}
 	hashedNewPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
