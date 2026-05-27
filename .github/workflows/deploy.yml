@@ -70,6 +70,8 @@ jobs:
             KEYCLOAK_REDIRECT_AUTH_URL=${{ vars.KEYCLOAK_REDIRECT_AUTH_URL }}
             KEYCLOAK_TOKEN_URL=${{ vars.KEYCLOAK_TOKEN_URL }}
             KEYCLOAK_INFO_URL=${{ vars.KEYCLOAK_INFO_URL }}
+            DEFAULT_ADMIN_EMAIL=${{ secrets.DEFAULT_ADMIN_EMAIL }}
+            DEFAULT_ADMIN_PASSWORD=${{ secrets.DEFAULT_ADMIN_PASSWORD }}
             EOF
             chmod 600 .env
 
