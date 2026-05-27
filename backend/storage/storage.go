@@ -191,6 +191,7 @@ type APIKeyStorage interface {
 	GetAPIKeyByHash(ctx context.Context, keyHash string) (*APIKey, error)
 	GetAPIKeyByID(ctx context.Context, id string) (*APIKey, error)
 	ListAPIKeys(ctx context.Context, userID string) ([]*APIKey, error)
+	ListAllAPIKeys(ctx context.Context) ([]*APIKey, error)
 	RevokeAPIKey(ctx context.Context, id string) error
 	UpdateAPIKeyLastUsed(ctx context.Context, id string) error
 	DeleteAPIKey(ctx context.Context, id string) error

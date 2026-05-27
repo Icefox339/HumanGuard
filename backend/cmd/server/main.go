@@ -198,6 +198,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.Handle("GET /api/admin/users/sessions/stats", routeContext("GET /api/admin/users/sessions/stats", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.GetSessionsStats)))))
 	mux.Handle("DELETE /api/admin/users/sessions/{session_id}", routeContext("DELETE /api/admin/users/sessions/{session_id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.ForceRevokeSession)))))
 	mux.Handle("DELETE /api/keys/{id}/permanent", routeContext("DELETE /api/keys/{id}/permanent", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.DeleteAPIKey)))))
+	mux.Handle("GET /api/admin/keys", routeContext("GET /api/admin/keys", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.ListAllAPIKeys)))))
 
 	// Site эндпоинты
 	// Blacklist endpoints

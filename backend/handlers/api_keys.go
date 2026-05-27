@@ -47,6 +47,19 @@ type APIKeyListResponse struct {
     Revoked    bool       `json:"revoked"`
 }
 
+type AdminAPIKeyListResponse struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"user_id"`
+	UserEmail  string     `json:"user_email"`
+	UserName   string     `json:"user_name"`
+	Name       string     `json:"name"`
+	Prefix     string     `json:"prefix"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	Revoked    bool       `json:"revoked"`
+}
+
 func (h *APIKeyHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
     // Security: API keys cannot create new API keys
     if auth.GetAPIKeyID(r.Context()) != "" {
@@ -240,4 +253,52 @@ func (h *APIKeyHandler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
     }
 
     writeJSON(w, http.StatusNoContent, nil)
+}
+
+func (h *APIKeyHandler) ListAllAPIKeys(w http.ResponseWriter, r *http.Request) {
+	role := auth.GetRole(r.Context())
+	if role != "admin" {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin access required"})
+		return
+	}
+
+	keys, err := h.storage.ListAllAPIKeys(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list API keys"})
+		return
+	}
+
+	users, err := h.storage.ListUsers(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list users"})
+		return
+	}
+
+	usersByID := make(map[string]*storage.User, len(users))
+	for _, user := range users {
+		usersByID[user.ID] = user
+	}
+
+	response := make([]AdminAPIKeyListResponse, len(keys))
+	for i, key := range keys {
+		user := usersByID[key.UserID]
+		response[i] = AdminAPIKeyListResponse{
+			ID:         key.ID,
+			UserID:     key.UserID,
+			UserEmail:  "",
+			UserName:   "",
+			Name:       key.Name,
+			Prefix:     key.Prefix,
+			CreatedAt:  key.CreatedAt,
+			ExpiresAt:  key.ExpiresAt,
+			LastUsedAt: key.LastUsedAt,
+			Revoked:    key.Revoked,
+		}
+		if user != nil {
+			response[i].UserEmail = user.Email
+			response[i].UserName = user.Name
+		}
+	}
+
+	writeJSON(w, http.StatusOK, response)
 }

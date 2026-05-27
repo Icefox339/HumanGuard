@@ -159,6 +159,51 @@ func (s *storage) ListAPIKeys(ctx context.Context, userID string) ([]*APIKey, er
     return keys, nil
 }
 
+func (s *storage) ListAllAPIKeys(ctx context.Context) ([]*APIKey, error) {
+	query := `
+		SELECT id, user_id, name, key_hash, prefix, last_used_at,
+		       expires_at, created_at, revoked, created_by
+		FROM api_keys
+		ORDER BY created_at DESC
+	`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all api keys: %w", err)
+	}
+	defer rows.Close()
+
+	var keys []*APIKey
+	for rows.Next() {
+		var key APIKey
+		var lastUsedAt, expiresAt sql.NullTime
+		var createdBy sql.NullString
+
+		err := rows.Scan(
+			&key.ID, &key.UserID, &key.Name, &key.KeyHash, &key.Prefix,
+			&lastUsedAt, &expiresAt, &key.CreatedAt, &key.Revoked,
+			&createdBy,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if lastUsedAt.Valid {
+			key.LastUsedAt = &lastUsedAt.Time
+		}
+		if expiresAt.Valid {
+			key.ExpiresAt = &expiresAt.Time
+		}
+		if createdBy.Valid {
+			key.CreatedBy = &createdBy.String
+		}
+
+		keys = append(keys, &key)
+	}
+
+	return keys, nil
+}
+
 func (s *storage) RevokeAPIKey(ctx context.Context, id string) error {
     query := `UPDATE api_keys SET revoked = true WHERE id = $1`
     result, err := s.db.ExecContext(ctx, query, id)
