@@ -16,7 +16,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 3
+      start_period: 10s
 
   minio:
     image: minio/minio
@@ -32,6 +33,12 @@ services:
       - minio_data:/data
     networks:
       - backend_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.1
@@ -87,6 +94,8 @@ services:
       - backend_network
     depends_on:
       postgres:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   frontend:
