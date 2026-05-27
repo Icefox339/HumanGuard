@@ -11,10 +11,14 @@ const truncate = (value?: string | null, max = 28) => {
   return value.length > max ? `${value.slice(0, max)}...` : value;
 };
 
-const isAvatarImage = (value?: string | null) => {
+const isDataImage = (value?: string | null) => {
   if (!value) return false;
-  const trimmed = value.trim();
-  return /^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed);
+  return /^data:image\//i.test(value.trim());
+};
+
+const isExternalUrl = (value?: string | null) => {
+  if (!value) return false;
+  return /^https?:\/\//i.test(value.trim());
 };
 
 const AvatarPreview = ({ avatarUrl }: { avatarUrl?: string | null }) => {
@@ -22,7 +26,7 @@ const AvatarPreview = ({ avatarUrl }: { avatarUrl?: string | null }) => {
     return <span className="text-[rgb(var(--text-secondary))]">—</span>;
   }
 
-  if (isAvatarImage(avatarUrl)) {
+  if (isDataImage(avatarUrl)) {
     return (
       <img
         src={avatarUrl}
@@ -32,6 +36,10 @@ const AvatarPreview = ({ avatarUrl }: { avatarUrl?: string | null }) => {
         referrerPolicy="no-referrer"
       />
     );
+  }
+
+  if (isExternalUrl(avatarUrl)) {
+    return <span className="block max-w-56 truncate" title={avatarUrl}>{truncate(avatarUrl, 40)}</span>;
   }
 
   return <span className="block max-w-56 truncate" title={avatarUrl}>{truncate(avatarUrl, 26)}</span>;
@@ -261,7 +269,23 @@ export const UsersTable = () => {
                     <td colSpan={8} className="px-3 py-3">
                       <div className="grid gap-2 md:grid-cols-2">
                         <input className="form-input rounded-lg px-3 py-2" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Имя" />
-                        <input className="form-input rounded-lg px-3 py-2" value={draftAvatarUrl} onChange={(e) => setDraftAvatarUrl(e.target.value)} placeholder="Avatar URL" />
+                        <div className="space-y-2">
+                          <input
+                            className="form-input w-full rounded-lg px-3 py-2"
+                            value={isDataImage(draftAvatarUrl) ? '' : draftAvatarUrl}
+                            onChange={(e) => setDraftAvatarUrl(e.target.value)}
+                            placeholder="Avatar URL"
+                          />
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-[rgb(var(--text-secondary))]">Превью:</span>
+                            <AvatarPreview avatarUrl={draftAvatarUrl || user.avatar_url} />
+                          </div>
+                          {isDataImage(draftAvatarUrl) && (
+                            <p className="text-xs text-[rgb(var(--text-secondary))]">
+                              Загружен avatar в формате base64 (скрыт, чтобы не показывать длинную строку).
+                            </p>
+                          )}
+                        </div>
                         <select className="form-input rounded-lg px-3 py-2" value={draftRole} onChange={(e) => setDraftRole(e.target.value as 'user' | 'admin')}>
                           <option value="user">user</option>
                           <option value="admin">admin</option>
