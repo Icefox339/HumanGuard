@@ -250,3 +250,116 @@ func (h *SiteHandler) UpdateSiteSettings(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
+
+// GET /api/sites/{id}/blacklist
+func (h *SiteHandler) GetBlacklist(w http.ResponseWriter, r *http.Request) {
+    id := r.PathValue("id")
+    
+    // Проверяем, что пользователь владеет сайтом или админ
+    userID := auth.GetUserID(r.Context())
+    role := auth.GetRole(r.Context())
+    
+    site, err := h.storage.GetSite(r.Context(), id)
+    if err != nil {
+        http.Error(w, "Site not found", http.StatusNotFound)
+        return
+    }
+    
+    if site.UserID != userID && role != "admin" {
+        http.Error(w, "Forbidden", http.StatusForbidden)
+        return
+    }
+    
+    entries, err := h.storage.ListBlacklist(r.Context(), id)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(entries)
+}
+
+// POST /api/sites/{id}/blacklist
+func (h *SiteHandler) AddToBlacklist(w http.ResponseWriter, r *http.Request) {
+    id := r.PathValue("id")
+    
+    userID := auth.GetUserID(r.Context())
+    role := auth.GetRole(r.Context())
+    
+    site, err := h.storage.GetSite(r.Context(), id)
+    if err != nil {
+        http.Error(w, "Site not found", http.StatusNotFound)
+        return
+    }
+    
+    if site.UserID != userID && role != "admin" {
+        http.Error(w, "Forbidden", http.StatusForbidden)
+        return
+    }
+    
+    var req struct {
+        IP        string `json:"ip"`
+        Reason    string `json:"reason"`
+        ExpiresIn *int   `json:"expires_in_minutes"`
+    }
+    
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request", http.StatusBadRequest)
+        return
+    }
+    
+    if req.IP == "" {
+        http.Error(w, "ip required", http.StatusBadRequest)
+        return
+    }
+    
+    var expiresAt *time.Time
+    if req.ExpiresIn != nil && *req.ExpiresIn > 0 {
+        t := time.Now().Add(time.Duration(*req.ExpiresIn) * time.Minute)
+        expiresAt = &t
+    }
+    
+    entry := &storage.BlacklistEntry{
+        SiteID:    id,
+        IP:        req.IP,
+        Reason:    req.Reason,
+        ExpiresAt: expiresAt,
+    }
+    
+    if err := h.storage.AddToBlacklist(r.Context(), entry); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(entry)
+}
+
+// DELETE /api/sites/{id}/blacklist/{ip}
+func (h *SiteHandler) RemoveFromBlacklist(w http.ResponseWriter, r *http.Request) {
+    id := r.PathValue("id")
+    ip := r.PathValue("ip")
+    
+    userID := auth.GetUserID(r.Context())
+    role := auth.GetRole(r.Context())
+    
+    site, err := h.storage.GetSite(r.Context(), id)
+    if err != nil {
+        http.Error(w, "Site not found", http.StatusNotFound)
+        return
+    }
+    
+    if site.UserID != userID && role != "admin" {
+        http.Error(w, "Forbidden", http.StatusForbidden)
+        return
+    }
+    
+    if err := h.storage.RemoveFromBlacklist(r.Context(), id, ip); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    w.WriteHeader(http.StatusNoContent)
+}

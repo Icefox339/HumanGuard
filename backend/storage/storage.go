@@ -18,9 +18,25 @@ type Storage interface {
 	SettingsStorage
 	BlacklistStorage
 	APIKeyStorage
-
+	OAuthStorage
 	Close() error
 	Ping() error
+}
+
+type UserOAuth struct {
+    ID        string    `json:"id"`
+    UserID    string    `json:"user_id"`
+    Provider  string    `json:"provider"`
+    OAuthID   string    `json:"oauth_id"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+type OAuthStorage interface {
+    AddUserOAuth(ctx context.Context, userID, provider, oauthID string) error
+    GetUserByOAuth(ctx context.Context, provider, oauthID string) (*User, error)
+    GetUserOAuths(ctx context.Context, userID string) ([]*UserOAuth, error)
+    RemoveUserOAuth(ctx context.Context, userID, provider string) error
+    GetOrCreateUserByOAuth(ctx context.Context, provider, oauthID, email, name string) (*User, error)
 }
 
 type Config struct {
@@ -38,8 +54,6 @@ type User struct {
 	TOTPSecret    *string    `json:"-"`
 	PasswordHash  string     `json:"-"`
 	IsVerified    bool       `json:"is_verified"`
-	OAuthProvider *string    `json:"oauth_provider"`
-	OAuthID       *string    `json:"-"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	LastLogin     *time.Time `json:"last_login"`
@@ -208,8 +222,6 @@ type UserStorage interface {
 	DeleteUser(ctx context.Context, id string) error
 	GetUserByID(ctx context.Context, id string) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
-	GetUserByOAuth(ctx context.Context, provider, oauthID string) (*User, error)
-	GetOrCreateUserByOAuth(ctx context.Context, provider, oauthID, email, name string) (*User, error)
 	UpdateLastLogin(ctx context.Context, userID string) error
 	UpdatePassword(ctx context.Context, userID, passwordHash string) error
 	UpdateAvatar(ctx context.Context, userID, avatarURL string) error

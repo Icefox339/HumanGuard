@@ -200,6 +200,11 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.Handle("DELETE /api/keys/{id}/permanent", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.DeleteAPIKey))))
 
 	// Site эндпоинты
+	// Blacklist endpoints
+	mux.Handle("GET /api/sites/{id}/blacklist", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetBlacklist)))
+	mux.Handle("POST /api/sites/{id}/blacklist", authMiddleware.Middleware(http.HandlerFunc(siteHandler.AddToBlacklist)))
+	mux.Handle("DELETE /api/sites/{id}/blacklist/{ip}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.RemoveFromBlacklist)))
+
 	mux.Handle("POST /api/sites", authMiddleware.Middleware(http.HandlerFunc(siteHandler.CreateSite)))
 	mux.Handle("GET /api/sites", authMiddleware.Middleware(http.HandlerFunc(siteHandler.ListSites)))
 	mux.Handle("GET /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetSite)))
@@ -216,8 +221,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.Handle("GET /api/sites/{id}/stats", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionStats)))
 
 	// File storage
-
-
+	
 	mux.Handle("POST /api/files/upload", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Upload)))
 	mux.Handle("GET /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Download)))
 	mux.Handle("DELETE /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Delete)))
