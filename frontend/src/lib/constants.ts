@@ -1,1 +1,1 @@
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+export { API_URL } from '@/lib/runtime-config';
