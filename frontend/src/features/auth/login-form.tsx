@@ -7,6 +7,7 @@ import { AxiosError } from 'axios';
 import { useAuth } from '@/features/auth/use-auth';
 import { ErrorAlert } from '@/components/common/error-alert';
 import { API_URL } from '@/lib/constants';
+import { useAuthStore } from '@/app/store/auth-store';
 
 const schema = z.object({
   email: z.string().email('Введите корректный email'),
@@ -20,6 +21,7 @@ type OAuthProvider = 'keycloak' | 'google' | 'github';
 export const LoginForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [apiError, setApiError] = useState<string | null>(null);
   const { loginMutation } = useAuth();
   const {
@@ -29,10 +31,10 @@ export const LoginForm = () => {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    if (loginMutation.isSuccess) {
+    if (isAuthenticated) {
       navigate('/dashboard', { replace: true });
     }
-  }, [loginMutation.isSuccess, navigate]);
+  }, [isAuthenticated, navigate]);
 
 
 
