@@ -1,0 +1,129 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: humanguard-postgres-debug
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: humanguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data_debug:/var/lib/postgresql/data
+      - ../backend/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d humanguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: humanguard-minio-debug
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data_debug:/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.1
+    container_name: humanguard-keycloak-debug
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: "edge"
+    ports:
+      - "8081:8080"
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: humanguard-backend-debug
+    restart: unless-stopped
+    environment:
+      # Server
+      ENV: development
+      PORT: 8080
+      CORS_ORIGIN: http://localhost:5173
+      
+      # Database
+      DATABASE_URL: postgres://postgres:123@postgres:5432/humanguard?sslmode=disable
+      
+      # Auth
+      JWT_SECRET: debug-super-secret-key-12345
+      
+      # Storage (use local for debug, minio optional)
+      STORAGE_TYPE: local
+      UPLOAD_DIR: ./data/uploads
+      
+      # MinIO (if you switch STORAGE_TYPE=minio)
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      MINIO_BUCKET: humanguard
+      MINIO_USE_SSL: "false"
+      
+      # OAuth - Keycloak
+      OAUTH_CLIENT_ID: humanguard
+      OAUTH_CLIENT_SECRET: debug-secret-key
+      KEYCLOAK_REDIRECT_URL: http://localhost:8080/api/auth/keycloak/callback
+      OAUTH_GOOGLE_REDIRECT_URL: http://localhost:8080/api/auth/google/callback
+      OAUTH_GITHUB_REDIRECT_URL: http://localhost:8080/api/auth/github/callback
+      
+      # OAuth - Google (optional, leave empty if not used)
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
+      
+      # OAuth - GitHub (optional)
+      GITHUB_CLIENT_ID: ""
+      GITHUB_CLIENT_SECRET: ""
+      
+      # Default admin (auto-created on first run)
+      DEFAULT_ADMIN_EMAIL: admin@localhost.com
+      DEFAULT_ADMIN_PASSWORD: admin123
+      DEFAULT_ADMIN_NAME: Debug Admin
+      
+      # Frontend URL for OAuth redirect
+      FRONTEND_URL: http://localhost:5173
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    volumes:
+      - uploads_debug:/app/data/uploads
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    container_name: humanguard-frontend-debug
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8080
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  pg_data_debug:
+  minio_data_debug:
+  uploads_debug:
