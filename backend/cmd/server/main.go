@@ -405,11 +405,10 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 func routeContext(route string, handler http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        ctx := context.WithValue(r.Context(), "route", route)
+        ctx := context.WithValue(r.Context(), middleware.RouteKey, route)
         handler.ServeHTTP(w, r.WithContext(ctx))
     })
 }
-
 // getEnv - получение переменной окружения с дефолтом
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
