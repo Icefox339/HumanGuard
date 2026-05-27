@@ -1,7 +1,7 @@
 import { ChangeEvent, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { API_URL } from '@/lib/constants';
-import { getFiles, ManagedFile, openUploadProgressSocket, uploadFile } from '@/api/files';
+import { createFileShare, getFiles, ManagedFile, openUploadProgressSocket, uploadFile } from '@/api/files';
 
 const formatBytes = (bytes: number) => {
   if (bytes === 0) {
@@ -55,6 +55,7 @@ export const FilesManager = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
+  const [shareTokens, setShareTokens] = useState<Record<string, string>>({});
 
   const loadFiles = async () => {
     setLoading(true);
@@ -124,6 +125,18 @@ export const FilesManager = () => {
         progressSocket.close();
       }
       setUploading(false);
+    }
+  };
+
+  const onShare = async (file: ManagedFile) => {
+    try {
+      setError(null);
+      const data = await createFileShare(file.id);
+      const shareUrl = `${API_URL}/api/files/share/${data.token}`;
+      setShareTokens((prev) => ({ ...prev, [file.id]: shareUrl }));
+      await navigator.clipboard.writeText(shareUrl);
+    } catch {
+      setError('Не удалось создать ссылку для шаринга файла.');
     }
   };
 
@@ -203,10 +216,16 @@ export const FilesManager = () => {
                     {file.created_at ? new Date(file.created_at).toLocaleString() : 'Дата неизвестна'}
                   </p>
                 </div>
-                <a className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" download href={getDownloadUrl(file)} rel="noreferrer" target="_blank">
-                  Скачать
-                </a>
+                <div className="flex gap-2">
+                  <button className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" type="button" onClick={() => void onShare(file)}>
+                    Share
+                  </button>
+                  <a className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" download href={getDownloadUrl(file)} rel="noreferrer" target="_blank">
+                    Скачать
+                  </a>
+                </div>
               </div>
+              {shareTokens[file.id] && <p className="mt-2 break-all text-xs text-[rgb(var(--text-secondary))]">Share URL: {shareTokens[file.id]} (скопировано)</p>}
             </article>
           ))}
         </div>

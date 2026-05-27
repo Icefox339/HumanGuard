@@ -24,6 +24,7 @@ export type CreateUserPayload = {
 export type UpdateUserPayload = {
   name?: string;
   role?: UserRole;
+  avatar_url?: string;
 };
 
 export const createUser = (payload: CreateUserPayload) =>
@@ -42,6 +43,9 @@ export const checkEmailExists = (email: string) =>
   api.get<{ exists: boolean }>(`/users/exists?email=${encodeURIComponent(email)}`).then(({ data }) => data);
 
 export const changeUserPassword = (id: string, payload: { old_password: string; new_password: string }) =>
+  api.post<void>(`/users/${id}/password`, payload).then(({ data }) => data);
+
+export const adminChangeUserPassword = (id: string, payload: { new_password: string }) =>
   api.post<void>(`/users/${id}/password`, payload).then(({ data }) => data);
 
 export const updateUser = (id: string, payload: UpdateUserPayload) =>

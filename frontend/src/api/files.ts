@@ -10,7 +10,17 @@ export type ManagedFile = {
   created_at?: string;
 };
 
+export type FileShareResponse = {
+  token: string;
+};
+
 export const getFiles = () => api.get<ManagedFile[]>('/files').then(({ data }) => data);
+
+export const createFileShare = (fileId: string, expiresInHours?: number) =>
+  api.post<FileShareResponse>('/files/share', {
+    file_id: fileId,
+    ...(expiresInHours && expiresInHours > 0 ? { expires_in_hours: expiresInHours } : {})
+  }).then(({ data }) => data);
 
 export const uploadFile = (
   file: File,
