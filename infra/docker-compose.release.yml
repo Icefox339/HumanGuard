@@ -90,7 +90,6 @@ services:
       - KC_DB_USERNAME=${POSTGRES_USER}
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
       # Прокси и хостнейм
-      - KC_HOSTNAME=${APP_DOMAIN}
       - KC_PROXY=edge
       - KC_HTTP_ENABLED=true
       - KC_HTTP_RELATIVE_PATH=/kc
