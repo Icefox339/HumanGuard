@@ -1,3 +1,4 @@
+// backend/metrics/metrics.go
 package metrics
 
 import (
@@ -6,6 +7,7 @@ import (
 )
 
 var (
+    // Основные метрики для HTTP запросов
     HTTPRequestsTotal = promauto.NewCounterVec(
         prometheus.CounterOpts{
             Name: "http_requests_total",
@@ -18,36 +20,16 @@ var (
         prometheus.HistogramOpts{
             Name:    "http_request_duration_seconds",
             Help:    "HTTP request duration in seconds",
-            Buckets: prometheus.DefBuckets,
+            Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
         },
         []string{"method", "endpoint"},
     )
 
+    // Метрики сессий и рисков
     ActiveSessions = promauto.NewGauge(
         prometheus.GaugeOpts{
             Name: "active_sessions_total",
             Help: "Total number of active visitor sessions",
-        },
-    )
-
-    BlockedRequests = promauto.NewCounter(
-        prometheus.CounterOpts{
-            Name: "blocked_requests_total",
-            Help: "Total number of blocked requests",
-        },
-    )
-
-    CaptchaRequests = promauto.NewCounter(
-        prometheus.CounterOpts{
-            Name: "captcha_requests_total",
-            Help: "Total number of requests that required captcha",
-        },
-    )
-
-    RateLimitExceeded = promauto.NewCounter(
-        prometheus.CounterOpts{
-            Name: "rate_limit_exceeded_total",
-            Help: "Total number of rate limit exceeded (HTTP 429)",
         },
     )
 
@@ -63,5 +45,14 @@ var (
             Name: "high_risk_sessions_total",
             Help: "Number of sessions with risk score >= 80",
         },
+    )
+    
+    // Действия блокировки с детализацией
+    BlockedActions = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "blocked_actions_total",
+            Help: "Number of actions taken (block, captcha) based on risk score",
+        },
+        []string{"action"},
     )
 )
