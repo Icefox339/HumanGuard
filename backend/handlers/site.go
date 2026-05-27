@@ -278,7 +278,9 @@ func (h *SiteHandler) GetBlacklist(w http.ResponseWriter, r *http.Request) {
     }
     
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(entries)
+	if err := json.NewEncoder(w).Encode(entries); err != nil {
+		log.Printf("Failed to encode blacklist response: %v", err)
+	}
 }
 
 // POST /api/sites/{id}/blacklist
@@ -334,8 +336,10 @@ func (h *SiteHandler) AddToBlacklist(w http.ResponseWriter, r *http.Request) {
     }
     
     w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusCreated)
-    json.NewEncoder(w).Encode(entry)
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(entry); err != nil {
+		log.Printf("Failed to encode blacklist entry response: %v", err)
+	}
 }
 
 // DELETE /api/sites/{id}/blacklist/{ip}
