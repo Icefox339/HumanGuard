@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { activateSite, createSite, deleteSite, getSites, Site, suspendSite } from '@/api/sites';
+import { updateSiteSettings } from '@/api/settings';
 import { useAuthStore } from '@/app/store/auth-store';
 
 const parseError = (error: unknown) => {
@@ -8,12 +9,38 @@ const parseError = (error: unknown) => {
   return err.response?.data?.error ?? err.message ?? 'Unknown error';
 };
 
+const parseSiteSettings = (rawSettings: string): Record<string, unknown> | null => {
+  const trimmedSettings = rawSettings.trim();
+  if (!trimmedSettings) {
+    return null;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmedSettings);
+  } catch {
+    throw new Error('Настройки сайта должны быть валидным JSON.');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Настройки сайта должны быть JSON-объектом.');
+  }
+
+  const allowedTopLevelKeys = new Set(['collector', 'analyzer', 'reaction']);
+  const unsupportedKeys = Object.keys(parsed).filter((key) => !allowedTopLevelKeys.has(key));
+  if (unsupportedKeys.length > 0) {
+    throw new Error(`Неподдерживаемые ключи настроек: ${unsupportedKeys.join(', ')}.`);
+  }
+
+  return parsed as Record<string, unknown>;
+};
+
 export const SitesTable = () => {
   const user = useAuthStore((s) => s.user);
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createData, setCreateData] = useState({ name: '', domain: '', origin_server: '' });
+  const [createData, setCreateData] = useState({ name: '', domain: '', origin_server: '', settings: '' });
 
   const loadSites = async () => {
     setLoading(true);
@@ -41,8 +68,20 @@ export const SitesTable = () => {
 
     try {
       setError(null);
-      await createSite({ user_id: user.id, ...createData });
-      setCreateData({ name: '', domain: '', origin_server: '' });
+      const parsedSettings = parseSiteSettings(createData.settings);
+
+      const createdSite = await createSite({
+        user_id: user.id,
+        name: createData.name,
+        domain: createData.domain,
+        origin_server: createData.origin_server
+      });
+
+      if (parsedSettings) {
+        await updateSiteSettings(createdSite.id, parsedSettings);
+      }
+
+      setCreateData({ name: '', domain: '', origin_server: '', settings: '' });
       await loadSites();
     } catch (e) {
       setError(parseError(e));
@@ -66,6 +105,12 @@ export const SitesTable = () => {
         <input className="form-input w-full rounded-lg px-3 py-2" placeholder="Название" value={createData.name} onChange={(e) => setCreateData((p) => ({ ...p, name: e.target.value }))} required />
         <input className="form-input w-full rounded-lg px-3 py-2" placeholder="Домен" value={createData.domain} onChange={(e) => setCreateData((p) => ({ ...p, domain: e.target.value }))} required />
         <input className="form-input w-full rounded-lg px-3 py-2" placeholder="Origin server (например http://localhost:3000)" value={createData.origin_server} onChange={(e) => setCreateData((p) => ({ ...p, origin_server: e.target.value }))} required />
+        <textarea
+          className="form-input min-h-28 w-full rounded-lg px-3 py-2"
+          placeholder={'Настройки сайта (JSON), например:\n{"collector":{"enabled":true},"analyzer":{"enabled":true},"reaction":{"enabled":true}}'}
+          value={createData.settings}
+          onChange={(e) => setCreateData((p) => ({ ...p, settings: e.target.value }))}
+        />
         <button className="interactive-chip theme-button px-4 py-2">Создать сайт</button>
       </form>
 
