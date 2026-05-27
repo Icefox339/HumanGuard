@@ -90,6 +90,8 @@ services:
   frontend:
     build: ../frontend
     restart: unless-stopped
+    environment:
+      - FRONTEND_URL=${FRONTEND_URL}
     ports:
       - "80:80"
     networks:

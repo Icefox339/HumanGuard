@@ -70,6 +70,9 @@ services:
   frontend:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/humanguard-frontend:${RELEASE_VERSION}
     restart: unless-stopped
+    environment:
+      - FRONTEND_URL=${FRONTEND_URL}
+      - PROJECT_VERSION=${RELEASE_VERSION}
     networks:
       - backend_network
 
