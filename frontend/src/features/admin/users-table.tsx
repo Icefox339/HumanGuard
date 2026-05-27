@@ -10,6 +10,32 @@ const truncate = (value?: string | null, max = 28) => {
   if (!value) return '—';
   return value.length > max ? `${value.slice(0, max)}...` : value;
 };
+
+const isAvatarImage = (value?: string | null) => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return /^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed);
+};
+
+const AvatarPreview = ({ avatarUrl }: { avatarUrl?: string | null }) => {
+  if (!avatarUrl) {
+    return <span className="text-[rgb(var(--text-secondary))]">—</span>;
+  }
+
+  if (isAvatarImage(avatarUrl)) {
+    return (
+      <img
+        src={avatarUrl}
+        alt="Аватар пользователя"
+        className="h-9 w-9 rounded-md border border-[rgb(var(--border))] object-cover"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  return <span className="block max-w-56 truncate" title={avatarUrl}>{truncate(avatarUrl, 26)}</span>;
+};
 const getError = (error: unknown) => {
   const err = error as AxiosError<{ error?: string }>;
   return {
@@ -207,7 +233,9 @@ export const UsersTable = () => {
                   </td>
                   <td className="px-3 py-2">{user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
                   <td className="px-3 py-2">{user.last_login ? new Date(user.last_login).toLocaleString() : '—'}</td>
-                  <td className="max-w-56 truncate px-3 py-2" title={user.avatar_url || ''}>{editingUserId === user.id ? (user.avatar_url || '—') : truncate(user.avatar_url, 26)}</td>
+                  <td className="px-3 py-2">
+                    <AvatarPreview avatarUrl={editingUserId === user.id ? draftAvatarUrl : user.avatar_url} />
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
                       {user.role !== 'admin' && (
