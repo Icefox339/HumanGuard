@@ -72,6 +72,18 @@ CREATE TABLE api_keys (
     created_by UUID REFERENCES users(id)
 );
 
+CREATE TABLE user_oauth (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider VARCHAR(50) NOT NULL,
+    oauth_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(provider, oauth_id)
+);
+
+CREATE INDEX idx_user_oauth_user_id ON user_oauth(user_id);
+CREATE INDEX idx_user_oauth_provider_oauth ON user_oauth(provider, oauth_id);
+
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_id);
