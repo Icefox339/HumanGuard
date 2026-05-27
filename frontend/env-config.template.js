@@ -1,3 +1,4 @@
+/* global window */
 window.__ENV__ = {
   VITE_API_URL: "${FRONTEND_URL}",
   PROJECT_VERSION: "${PROJECT_VERSION}"
