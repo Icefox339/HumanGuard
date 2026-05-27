@@ -49,7 +49,27 @@ jobs:
             MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}
             KEYCLOAK_ADMIN=${{ secrets.KEYCLOAK_ADMIN }}
             KEYCLOAK_ADMIN_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_PASSWORD }}
-            APP_DOMAIN=${app_domain}
+            APP_DOMAIN=${{ vars.APP_DOMAIN }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            STORAGE_TYPE=${{ secrets.STORAGE_TYPE }}
+            MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}
+            MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}
+            MINIO_BUCKET=${{ secrets.MINIO_BUCKET }}
+            MINIO_USE_SSL=${{ secrets.MINIO_USE_SSL }}
+            CORS_ORIGIN=${{ vars.CORS_ORIGIN }}
+            FRONTEND_URL=${{ vars.FRONTEND_URL }}
+            OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }}
+            OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }}
+            KEYCLOAK_REDIRECT_URL=${{ vars.KEYCLOAK_REDIRECT_URL }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            OAUTH_GOOGLE_REDIRECT_URL=${{ vars.OAUTH_GOOGLE_REDIRECT_URL }}
+            GITHUB_CLIENT_ID=${{ secrets.GITHUB_CLIENT_ID }}
+            GITHUB_CLIENT_SECRET=${{ secrets.GITHUB_CLIENT_SECRET }}
+            OAUTH_GITHUB_REDIRECT_URL=${{ vars.OAUTH_GITHUB_REDIRECT_URL }}
+            KEYCLOAK_REDIRECT_AUTH_URL=${{ vars.KEYCLOAK_REDIRECT_AUTH_URL }}
+            KEYCLOAK_TOKEN_URL=${{ vars.KEYCLOAK_TOKEN_URL }}
+            KEYCLOAK_INFO_URL=${{ vars.KEYCLOAK_INFO_URL }}
             EOF
             chmod 600 .env
 

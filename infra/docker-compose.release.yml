@@ -50,6 +50,9 @@ services:
       - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
       - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
       - KEYCLOAK_REDIRECT_URL=${KEYCLOAK_REDIRECT_URL}
+      - KEYCLOAK_REDIRECT_AUTH_URL=${KEYCLOAK_REDIRECT_AUTH_URL}
+      - KEYCLOAK_TOKEN_URL=${KEYCLOAK_TOKEN_URL}
+      - KEYCLOAK_INFO_URL=${KEYCLOAK_INFO_URL}
 
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
@@ -74,14 +77,29 @@ services:
     image: quay.io/keycloak/keycloak:24.0.1
     container_name: humanguard-keycloak
     restart: unless-stopped
-    command: start-dev
+    command: start
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      # База данных
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      - KC_DB_USERNAME=${POSTGRES_USER}
+      - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
+      # Прокси и хостнейм
+      - KC_HOSTNAME=${APP_DOMAIN}
+      - KC_PROXY=edge
+      - KC_HTTP_ENABLED=true
+      - KC_HTTP_RELATIVE_PATH=/kc
+      - KC_HOSTNAME_URL=https://${APP_DOMAIN}/kc
+      - KC_HOSTNAME_ADMIN_URL=https://${APP_DOMAIN}/kc
     volumes:
       - keycloak_data:/opt/keycloak/data
     networks:
       - backend_network
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
