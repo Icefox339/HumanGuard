@@ -11,6 +11,8 @@ const parseError = (error: unknown) => {
   return err.response?.data?.error ?? err.message ?? 'Unknown error';
 };
 
+const isValidIPv4 = (value: string) => /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/.test(value);
+
 const parseSiteSettings = (rawSettings: string): Record<string, unknown> | null => {
   const trimmedSettings = rawSettings.trim();
   if (!trimmedSettings) {
@@ -105,6 +107,11 @@ export const SitesTable = () => {
     const draft = blacklistForms[siteId] ?? { ip: '', reason: '' };
     if (!draft.ip.trim()) {
       setError('Укажите IP для добавления в blacklist.');
+      return;
+    }
+
+    if (!isValidIPv4(draft.ip.trim())) {
+      setError('Введите корректный IPv4 адрес (например, 192.168.0.10).');
       return;
     }
 
