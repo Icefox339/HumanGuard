@@ -167,75 +167,74 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	adminOnly := auth.RequireAdmin()
 
 	// Публичные эндпоинты (без авторизации)
-	mux.HandleFunc("POST /api/users", userHandler.CreateUser)
-	mux.HandleFunc("POST /api/login", userHandler.Login)
-	mux.HandleFunc("GET /api/auth/keycloak/login", userHandler.KeycloakLogin)
-	mux.HandleFunc("GET /api/auth/keycloak/callback", userHandler.KeycloakCallback)
-	mux.HandleFunc("GET /api/auth/google/login", userHandler.GoogleLogin)
-	mux.HandleFunc("GET /api/auth/google/callback", userHandler.GoogleCallback)
-	mux.HandleFunc("GET /api/auth/github/login", userHandler.GithubLogin)
-	mux.HandleFunc("GET /api/auth/github/callback", userHandler.GithubCallback)
-	mux.HandleFunc("POST /api/check", visitorSessionHandler.CheckRequest)
-	mux.HandleFunc("POST /api/behavior/{id}", behaviorHandler.SubmitBehavior)
-	mux.HandleFunc("GET /api/csrf", middleware.CSRFTokenHandler)
-	mux.HandleFunc("GET /api/files/share/{token}", fileHandler.GetByShareToken)
+	mux.Handle("POST /api/users", routeContext("POST /api/users", http.HandlerFunc(userHandler.CreateUser)))
+	mux.Handle("POST /api/login", routeContext("POST /api/login", http.HandlerFunc(userHandler.Login)))
+	mux.Handle("GET /api/auth/keycloak/login", routeContext("GET /api/auth/keycloak/login", http.HandlerFunc(userHandler.KeycloakLogin)))
+	mux.Handle("GET /api/auth/keycloak/callback", routeContext("GET /api/auth/keycloak/callback", http.HandlerFunc(userHandler.KeycloakCallback)))
+	mux.Handle("GET /api/auth/google/login", routeContext("GET /api/auth/google/login", http.HandlerFunc(userHandler.GoogleLogin)))
+	mux.Handle("GET /api/auth/google/callback", routeContext("GET /api/auth/google/callback", http.HandlerFunc(userHandler.GoogleCallback)))
+	mux.Handle("GET /api/auth/github/login", routeContext("GET /api/auth/github/login", http.HandlerFunc(userHandler.GithubLogin)))
+	mux.Handle("GET /api/auth/github/callback", routeContext("GET /api/auth/github/callback", http.HandlerFunc(userHandler.GithubCallback)))
+	mux.Handle("POST /api/check", routeContext("POST /api/check", http.HandlerFunc(visitorSessionHandler.CheckRequest)))
+	mux.Handle("POST /api/behavior/{id}", routeContext("POST /api/behavior/{id}", http.HandlerFunc(behaviorHandler.SubmitBehavior)))
+	mux.Handle("GET /api/csrf", routeContext("GET /api/csrf", http.HandlerFunc(middleware.CSRFTokenHandler)))
+	mux.Handle("GET /api/files/share/{token}", routeContext("GET /api/files/share/{token}", http.HandlerFunc(fileHandler.GetByShareToken)))
 
 	// Защищенные эндпоинты (требуют авторизации)
-	mux.Handle("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout)))
-	mux.Handle("GET /api/me", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetCurrentUser)))
-	mux.Handle("GET /api/users/email/{email}", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetUserByEmail)))
-	mux.Handle("GET /api/users/exists", authMiddleware.Middleware(http.HandlerFunc(userHandler.CheckEmailExists)))
-	mux.Handle("GET /api/users/oauth/{provider}/{oauthId}", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetUserByOAuth)))
-	mux.Handle("POST /api/users/{id}/password", authMiddleware.Middleware(http.HandlerFunc(userHandler.ChangePassword)))
-	mux.Handle("POST /api/users/{id}/avatar", authMiddleware.Middleware(http.HandlerFunc(userHandler.UpdateAvatar)))
-	mux.Handle("GET /api/users/{id}", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetUser)))
-	mux.Handle("PUT /api/users/{id}", authMiddleware.Middleware(http.HandlerFunc(userHandler.UpdateUser)))
+	mux.Handle("POST /api/logout", routeContext("POST /api/logout", authMiddleware.Middleware(http.HandlerFunc(userHandler.Logout))))
+	mux.Handle("GET /api/me", routeContext("GET /api/me", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetCurrentUser))))
+	mux.Handle("GET /api/users/email/{email}", routeContext("GET /api/users/email/{email}", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetUserByEmail))))
+	mux.Handle("GET /api/users/exists", routeContext("GET /api/users/exists", authMiddleware.Middleware(http.HandlerFunc(userHandler.CheckEmailExists))))
+	mux.Handle("GET /api/users/oauth/{provider}/{oauthId}", routeContext("GET /api/users/oauth/{provider}/{oauthId}", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetUserByOAuth))))
+	mux.Handle("POST /api/users/{id}/password", routeContext("POST /api/users/{id}/password", authMiddleware.Middleware(http.HandlerFunc(userHandler.ChangePassword))))
+	mux.Handle("POST /api/users/{id}/avatar", routeContext("POST /api/users/{id}/avatar", authMiddleware.Middleware(http.HandlerFunc(userHandler.UpdateAvatar))))
+	mux.Handle("GET /api/users/{id}", routeContext("GET /api/users/{id}", authMiddleware.Middleware(http.HandlerFunc(userHandler.GetUser))))
+	mux.Handle("PUT /api/users/{id}", routeContext("PUT /api/users/{id}", authMiddleware.Middleware(http.HandlerFunc(userHandler.UpdateUser))))
 
 	// Админские эндпоинты
-	mux.Handle("GET /api/users", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userHandler.ListUsers))))
-	mux.Handle("DELETE /api/users/{id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userHandler.DeleteUser))))
-	mux.Handle("GET /api/admin/users/sessions", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.ListAllUserSessions))))
-	mux.Handle("GET /api/admin/users/sessions/stats", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.GetSessionsStats))))
-	mux.Handle("DELETE /api/admin/users/sessions/{session_id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.ForceRevokeSession))))
-	mux.Handle("DELETE /api/keys/{id}/permanent", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.DeleteAPIKey))))
+	mux.Handle("GET /api/users", routeContext("GET /api/users", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userHandler.ListUsers)))))
+	mux.Handle("DELETE /api/users/{id}", routeContext("DELETE /api/users/{id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userHandler.DeleteUser)))))
+	mux.Handle("GET /api/admin/users/sessions", routeContext("GET /api/admin/users/sessions", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.ListAllUserSessions)))))
+	mux.Handle("GET /api/admin/users/sessions/stats", routeContext("GET /api/admin/users/sessions/stats", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.GetSessionsStats)))))
+	mux.Handle("DELETE /api/admin/users/sessions/{session_id}", routeContext("DELETE /api/admin/users/sessions/{session_id}", authMiddleware.Middleware(adminOnly(http.HandlerFunc(userSessionHandler.ForceRevokeSession)))))
+	mux.Handle("DELETE /api/keys/{id}/permanent", routeContext("DELETE /api/keys/{id}/permanent", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.DeleteAPIKey)))))
 
 	// Site эндпоинты
 	// Blacklist endpoints
-	mux.Handle("GET /api/sites/{id}/blacklist", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetBlacklist)))
-	mux.Handle("POST /api/sites/{id}/blacklist", authMiddleware.Middleware(http.HandlerFunc(siteHandler.AddToBlacklist)))
-	mux.Handle("DELETE /api/sites/{id}/blacklist/{ip}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.RemoveFromBlacklist)))
+	mux.Handle("GET /api/sites/{id}/blacklist", routeContext("GET /api/sites/{id}/blacklist", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetBlacklist))))
+	mux.Handle("POST /api/sites/{id}/blacklist", routeContext("POST /api/sites/{id}/blacklist", authMiddleware.Middleware(http.HandlerFunc(siteHandler.AddToBlacklist))))
+	mux.Handle("DELETE /api/sites/{id}/blacklist/{ip}", routeContext("DELETE /api/sites/{id}/blacklist/{ip}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.RemoveFromBlacklist))))
 
-	mux.Handle("POST /api/sites", authMiddleware.Middleware(http.HandlerFunc(siteHandler.CreateSite)))
-	mux.Handle("GET /api/sites", authMiddleware.Middleware(http.HandlerFunc(siteHandler.ListSites)))
-	mux.Handle("GET /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetSite)))
-	mux.Handle("PUT /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.UpdateSite)))
-	mux.Handle("DELETE /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.DeleteSite)))
-	mux.Handle("POST /api/sites/{id}/activate", authMiddleware.Middleware(http.HandlerFunc(siteHandler.ActivateSite)))
-	mux.Handle("POST /api/sites/{id}/suspend", authMiddleware.Middleware(http.HandlerFunc(siteHandler.SuspendSite)))
-	mux.Handle("GET /api/sites/{id}/settings", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetSiteSettings)))
-	mux.Handle("PUT /api/sites/{id}/settings", authMiddleware.Middleware(http.HandlerFunc(siteHandler.UpdateSiteSettings)))
+	mux.Handle("POST /api/sites", routeContext("POST /api/sites", authMiddleware.Middleware(http.HandlerFunc(siteHandler.CreateSite))))
+	mux.Handle("GET /api/sites", routeContext("GET /api/sites", authMiddleware.Middleware(http.HandlerFunc(siteHandler.ListSites))))
+	mux.Handle("GET /api/sites/{id}", routeContext("GET /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetSite))))
+	mux.Handle("PUT /api/sites/{id}", routeContext("PUT /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.UpdateSite))))
+	mux.Handle("DELETE /api/sites/{id}", routeContext("DELETE /api/sites/{id}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.DeleteSite))))
+	mux.Handle("POST /api/sites/{id}/activate", routeContext("POST /api/sites/{id}/activate", authMiddleware.Middleware(http.HandlerFunc(siteHandler.ActivateSite))))
+	mux.Handle("POST /api/sites/{id}/suspend", routeContext("POST /api/sites/{id}/suspend", authMiddleware.Middleware(http.HandlerFunc(siteHandler.SuspendSite))))
+	mux.Handle("GET /api/sites/{id}/settings", routeContext("GET /api/sites/{id}/settings", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetSiteSettings))))
+	mux.Handle("PUT /api/sites/{id}/settings", routeContext("PUT /api/sites/{id}/settings", authMiddleware.Middleware(http.HandlerFunc(siteHandler.UpdateSiteSettings))))
 
 	// Visitor sessions эндпоинты
-	mux.Handle("GET /api/sites/{id}/sessions", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionsBySite)))
-	mux.Handle("GET /api/sites/{id}/sessions/suspicious", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSuspiciousSessions)))
-	mux.Handle("GET /api/sites/{id}/stats", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionStats)))
+	mux.Handle("GET /api/sites/{id}/sessions", routeContext("GET /api/sites/{id}/sessions", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionsBySite))))
+	mux.Handle("GET /api/sites/{id}/sessions/suspicious", routeContext("GET /api/sites/{id}/sessions/suspicious", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSuspiciousSessions))))
+	mux.Handle("GET /api/sites/{id}/stats", routeContext("GET /api/sites/{id}/stats", authMiddleware.Middleware(http.HandlerFunc(visitorSessionHandler.GetSessionStats))))
 
 	// File storage
-	
-	mux.Handle("POST /api/files/upload", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Upload)))
-	mux.Handle("GET /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Download)))
-	mux.Handle("DELETE /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Delete)))
-	mux.Handle("GET /api/files", authMiddleware.Middleware(http.HandlerFunc(fileHandler.List)))
-	mux.Handle("POST /api/files/share", authMiddleware.Middleware(http.HandlerFunc(fileHandler.CreateShare)))
-	mux.Handle("/api/files/upload/progress", authMiddleware.Middleware(http.HandlerFunc(fileHandler.UploadProgressWS)))
+	mux.Handle("POST /api/files/upload", routeContext("POST /api/files/upload", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Upload))))
+	mux.Handle("GET /api/files/{id}", routeContext("GET /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Download))))
+	mux.Handle("DELETE /api/files/{id}", routeContext("DELETE /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Delete))))
+	mux.Handle("GET /api/files", routeContext("GET /api/files", authMiddleware.Middleware(http.HandlerFunc(fileHandler.List))))
+	mux.Handle("POST /api/files/share", routeContext("POST /api/files/share", authMiddleware.Middleware(http.HandlerFunc(fileHandler.CreateShare))))
+	mux.Handle("/api/files/upload/progress", routeContext("/api/files/upload/progress", authMiddleware.Middleware(http.HandlerFunc(fileHandler.UploadProgressWS))))
 
 	// API keys
-	mux.Handle("POST /api/keys", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))
-	mux.Handle("GET /api/keys", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)))
-	mux.Handle("DELETE /api/keys/{id}", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.RevokeAPIKey)))
+	mux.Handle("POST /api/keys", routeContext("POST /api/keys", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey))))
+	mux.Handle("GET /api/keys", routeContext("GET /api/keys", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys))))
+	mux.Handle("DELETE /api/keys/{id}", routeContext("DELETE /api/keys/{id}", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.RevokeAPIKey))))
 
 	// Анализ поведения
-	mux.Handle("POST /api/sessions/{id}/analyze", authMiddleware.Middleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis)))
+	mux.Handle("POST /api/sessions/{id}/analyze", routeContext("POST /api/sessions/{id}/analyze", authMiddleware.Middleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis))))
 
 	// Глобальные middleware
 	handler := http.Handler(mux)
@@ -243,6 +242,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	handler = corsMiddleware(handler)
 	handler = middleware.CSPMiddleware(handler)
 	handler = middleware.RequestIDMiddleware(handler)
+	handler = middleware.MetricsMiddleware(handler)
 	handler = middleware.CSRFMiddleware([]string{
 		"/api/login",
 		"/api/users",
@@ -401,6 +401,13 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func routeContext(route string, handler http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        ctx := context.WithValue(r.Context(), "route", route)
+        handler.ServeHTTP(w, r.WithContext(ctx))
+    })
 }
 
 // getEnv - получение переменной окружения с дефолтом
