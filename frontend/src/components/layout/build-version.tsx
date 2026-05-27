@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PROJECT_VERSION } from '@/lib/runtime-config';
 
 export const BuildVersion = () => {
   const [isVisible, setIsVisible] = useState(true);
@@ -7,7 +8,7 @@ export const BuildVersion = () => {
     <div className="fixed bottom-3 right-3 z-50 flex items-end gap-2">
       {isVisible && (
         <footer className="rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-500 shadow-sm backdrop-blur">
-          Build version: {import.meta.env.VITE_BUILD_VERSION}
+          Build version: {PROJECT_VERSION}
         </footer>
       )}
       <button
