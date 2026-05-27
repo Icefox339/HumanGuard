@@ -250,3 +250,78 @@ func (h *SiteHandler) UpdateSiteSettings(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
+
+// GET /api/sites/{id}/blacklist
+func (h *SiteHandler) ListBlacklist(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	entries, err := h.storage.ListBlacklist(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if entries == nil {
+		entries = []*storage.BlacklistEntry{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(entries); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// POST /api/sites/{id}/blacklist
+func (h *SiteHandler) AddToBlacklist(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var req struct {
+		IP     string `json:"ip"`
+		Reason string `json:"reason"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.IP == "" {
+		http.Error(w, "ip is required", http.StatusBadRequest)
+		return
+	}
+
+	entry := &storage.BlacklistEntry{SiteID: id, IP: req.IP, Reason: req.Reason}
+	if err := h.storage.AddToBlacklist(r.Context(), entry); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(entry); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// DELETE /api/sites/{id}/blacklist/{ip}
+func (h *SiteHandler) RemoveFromBlacklist(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	ip := r.PathValue("ip")
+
+	if ip == "" {
+		http.Error(w, "ip is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.storage.RemoveFromBlacklist(r.Context(), id, ip); err != nil {
+		if errors.Is(err, storage.ErrBlacklistEntryNotFound) {
+			http.Error(w, "Blacklist entry not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
