@@ -4,12 +4,10 @@ import { useAuthStore } from '@/app/store/auth-store';
 import { getCurrentUser } from '@/api/auth';
 
 export const ProtectedRoute = ({ children }: PropsWithChildren) => {
-  const { isAuthenticated, user, clearSession, setUser } = useAuthStore((s) => ({
-    isAuthenticated: s.isAuthenticated,
-    user: s.user,
-    clearSession: s.clearSession,
-    setUser: s.setUser
-  }));
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
+  const clearSession = useAuthStore((s) => s.clearSession);
+  const setUser = useAuthStore((s) => s.setUser);
   const [loading, setLoading] = useState(isAuthenticated && !user);
 
   useEffect(() => {
