@@ -256,21 +256,21 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(blocked_requests_total[5m]))",
+          "expr": "sum(rate(http_requests_total{status=~\"2..\"}[5m])) by (status)",
           "interval": "",
-          "legendFormat": "Blocked Requests",
+          "legendFormat": "{{status}}",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(rate_limit_exceeded_total[5m]))",
+          "expr": "sum(rate(http_requests_total{status=~\"4..\"}[5m])) by (status)",
           "interval": "",
-          "legendFormat": "Rate Limit Exceeded (429)",
+          "legendFormat": "{{status}}",
           "refId": "B"
         },
         {
-          "expr": "sum(rate(promhttp_metric_handler_requests_total{code=\"200\"}[5m]))",
+          "expr": "sum(rate(http_requests_total{status=\"429\"}[5m])) by (status)",
           "interval": "",
-          "legendFormat": "Metrics 200 OK",
+          "legendFormat": "429 Rate Limit",
           "refId": "C"
         }
       ],

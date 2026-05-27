@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"humanguard/metrics"
 	"humanguard/storage"
 )
 
@@ -173,10 +172,8 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 
 	action := "allow"
 	if session.RiskScore >= 80 {
-		metrics.BlockedRequests.Inc()
 		action = "block"
 	} else if session.RiskScore >= 50 {
-		metrics.CaptchaRequests.Inc()
 		action = "captcha"
 	}
 
