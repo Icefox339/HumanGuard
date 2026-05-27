@@ -26,6 +26,12 @@ vi .env
 docker compose --profile certbot-init run --rm --service-ports certbot certonly --standalone -d ВАШ_ДОМЕН -m ВАШ_EMAIL --agree-tos --no-eff-email
 ```
 
+Поднять и настроить keycloak, если еще не был настроен:
+> если вы ранее уже настроили keycloak, то пропустите этот шаг
+``` bash
+docker compose up -d keycloak
+```
+
 Поднять сервис:
 ``` bash
 docker compose up -d --remove-orphans

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"strconv"
+
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"net/http"
-	"strconv"
 )
 
 type OAuthService struct {
@@ -31,8 +33,8 @@ func NewOAuthService(provider, clientID, clientSecret, redirectURL string) *OAut
 		scopes = []string{"user:email"}
 	default:
 		endpoint = oauth2.Endpoint{
-			AuthURL:  "http://localhost:8081/realms/master/protocol/openid-connect/auth",
-			TokenURL: "http://localhost:8081/realms/master/protocol/openid-connect/token",
+			AuthURL:  getEnv("KEYCLOAK_REDIRECT_AUTH_URL", "http://localhost:8081/realms/master/protocol/openid-connect/auth"),
+			TokenURL: getEnv("KEYCLOAK_TOKEN_URL", "http://localhost:8081/realms/master/protocol/openid-connect/token"),
 		}
 	}
 
@@ -66,7 +68,7 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token *oauth2.Token) (*O
 	case "github":
 		userInfoURL = "https://api.github.com/user"
 	default:
-		userInfoURL = "http://localhost:8081/realms/master/protocol/openid-connect/userinfo"
+		userInfoURL = getEnv("KEYCLOAK_INFO_URL", "http://localhost:8081/realms/master/protocol/openid-connect/userinfo")
 	}
 
 	resp, err := client.Get(userInfoURL)
@@ -162,4 +164,12 @@ type OAuthUserInfo struct {
 	ID    string
 	Email string
 	Name  string
+}
+
+// getEnv - получение переменной окружения с дефолтом
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
