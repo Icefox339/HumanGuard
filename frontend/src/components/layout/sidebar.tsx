@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/app/store/auth-store';
 
 const mainLinks = [
@@ -6,8 +7,7 @@ const mainLinks = [
   ['Sites', '/sites'],
   ['Files', '/files'],
   ['Profile', '/profile'],
-  ['API Keys', '/api-keys'],
-  ['Users', '/admin/users']
+  ['API Keys', '/api-keys']
 ];
 
 type SidebarProps = {
@@ -17,7 +17,9 @@ type SidebarProps = {
 
 export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const user = useAuthStore((s) => s.user);
+  const location = useLocation();
   const isAdmin = user?.role === 'admin';
+  const isOnAdminRoute = location.pathname.startsWith('/admin/');
 
   return (
     <>
@@ -53,7 +55,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             </NavLink>
           ))}
 
-          {isAdmin && (
+          {(isAdmin || isOnAdminRoute) && (
             <>
               <p className="mt-4 px-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--text-secondary))]">
                 Администрирование

@@ -377,9 +377,12 @@ func getEnvOrDefault(key, defaultValue string) string {
 
 func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	requesterID := auth.GetUserID(r.Context())
+	requesterRole := auth.GetRole(r.Context())
 	var req struct {
-		Name string `json:"name"`
-		Role string `json:"role"`
+		Name      string `json:"name"`
+		Role      string `json:"role"`
+		AvatarURL *string `json:"avatar_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -391,10 +394,25 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Name != "" {
+		if requesterID != id && requesterRole != "admin" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		user.Name = req.Name
 	}
 	if req.Role != "" {
+		if requesterRole != "admin" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		user.Role = req.Role
+	}
+	if req.AvatarURL != nil {
+		if requesterID != id && requesterRole != "admin" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		user.AvatarURL = req.AvatarURL
 	}
 	if err := h.storage.UpdateUser(r.Context(), user); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -438,6 +456,8 @@ func (h *UserHandler) GetUserByEmail(w http.ResponseWriter, r *http.Request) {
 
 func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	requesterID := auth.GetUserID(r.Context())
+	requesterRole := auth.GetRole(r.Context())
 	var req struct {
 		OldPassword string `json:"old_password"`
 		NewPassword string `json:"new_password"`
@@ -446,8 +466,17 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.OldPassword == "" || req.NewPassword == "" {
-		http.Error(w, "Old password and new password are required", http.StatusBadRequest)
+	if req.NewPassword == "" {
+		http.Error(w, "New password is required", http.StatusBadRequest)
+		return
+	}
+	if requesterID != id && requesterRole != "admin" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	isAdminOverride := requesterRole == "admin" && requesterID != id
+	if !isAdminOverride && req.OldPassword == "" {
+		http.Error(w, "Old password is required", http.StatusBadRequest)
 		return
 	}
 	user, err := h.storage.GetUserByID(r.Context(), id)
@@ -455,9 +484,11 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
-		http.Error(w, "Invalid old password", http.StatusUnauthorized)
-		return
+	if !isAdminOverride {
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+			http.Error(w, "Invalid old password", http.StatusUnauthorized)
+			return
+		}
 	}
 	hashedNewPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -490,6 +521,8 @@ func (h *UserHandler) CheckEmailExists(w http.ResponseWriter, r *http.Request) {
 
 func (h *UserHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	requesterID := auth.GetUserID(r.Context())
+	requesterRole := auth.GetRole(r.Context())
 	var req struct {
 		AvatarURL string `json:"avatar_url"`
 	}
@@ -499,6 +532,10 @@ func (h *UserHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.AvatarURL == "" {
 		http.Error(w, "avatar_url is required", http.StatusBadRequest)
+		return
+	}
+	if requesterID != id && requesterRole != "admin" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 	if err := h.storage.UpdateAvatar(r.Context(), id, req.AvatarURL); err != nil {
