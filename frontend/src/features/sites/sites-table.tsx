@@ -181,6 +181,7 @@ export const SitesTable = () => {
                 <div>
                   <p className="font-medium text-[rgb(var(--text-primary))]">{site.name}</p>
                   <p className="text-sm text-[rgb(var(--text-secondary))]">{site.domain}</p>
+                  <p className="text-xs text-[rgb(var(--text-secondary))]">SITE_ID: <span className="font-mono">{site.id}</span></p>
                   <p className="text-xs text-[rgb(var(--text-secondary))]">status: {site.status}</p>
                   <div className="mt-2 flex gap-2">
                     <Link className="text-xs underline text-[rgb(var(--accent))]" to={`/sites/${site.id}/settings`}>Settings</Link>
