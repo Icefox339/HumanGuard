@@ -94,6 +94,17 @@ func (h *APIKeyHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.ExpiresIn != nil {
+		if *req.ExpiresIn <= 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "expires_in must be a positive integer"})
+			return
+		}
+		if *req.ExpiresIn > 36500 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "expires_in cannot exceed 36500 days"})
+			return
+		}
+	}
+
 	prefix := "hg_v1_"
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
