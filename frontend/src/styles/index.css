@@ -232,6 +232,17 @@ body {
 }
 
 
+
+.responsive-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.responsive-table-wrap table {
+  min-width: 980px;
+}
+
 @keyframes auth-bg-flow {
   0% {
     background-position: 0% 45%;

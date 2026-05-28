@@ -38,7 +38,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <circle cx="10" cy="9.4" r="2.2" fill="white" fillOpacity="0.95" />
             </svg>
           </span>
-          ХьюмэнГард
+          HumanGuard
         </h1>
         <nav className="flex flex-col gap-1">
           {mainLinks.map(([label, href]) => (

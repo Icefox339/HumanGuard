@@ -54,6 +54,7 @@ export const TokensPage = () => {
               <tr className="text-left text-[rgb(var(--text-secondary))]">
                 <th className="px-3 py-2">Пользователь</th>
                 <th className="px-3 py-2">Email</th>
+                <th className="px-3 py-2">Роль</th>
                 <th className="px-3 py-2">Название</th>
                 <th className="px-3 py-2">Префикс</th>
                 <th className="px-3 py-2">Создан</th>
@@ -66,6 +67,7 @@ export const TokensPage = () => {
                 <tr key={token.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
                   <td className="px-3 py-2">{token.user_name || '—'}</td>
                   <td className="px-3 py-2">{token.user_email || '—'}</td>
+                  <td className="px-3 py-2">{token.user_role || '—'}</td>
                   <td className="px-3 py-2">{token.name}</td>
                   <td className="px-3 py-2">{token.prefix}</td>
                   <td className="px-3 py-2">{new Date(token.created_at).toLocaleString()}</td>

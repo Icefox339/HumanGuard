@@ -5,7 +5,7 @@ const CREATED_KEYS_STORAGE_KEY = 'created_api_keys_by_id';
 
 const readCreatedKeys = (): Record<string, string> => {
   try {
-    const raw = window.sessionStorage.getItem(CREATED_KEYS_STORAGE_KEY);
+    const raw = window.localStorage.getItem(CREATED_KEYS_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object') return {};
@@ -21,7 +21,7 @@ const readCreatedKeys = (): Record<string, string> => {
 };
 
 const saveCreatedKeys = (tokensById: Record<string, string>) => {
-  window.sessionStorage.setItem(CREATED_KEYS_STORAGE_KEY, JSON.stringify(tokensById));
+  window.localStorage.setItem(CREATED_KEYS_STORAGE_KEY, JSON.stringify(tokensById));
 };
 
 export const ApiKeysPage = () => {

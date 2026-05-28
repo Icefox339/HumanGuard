@@ -67,7 +67,10 @@ export const SiteSettingsForm = () => {
   return (
     <form className="theme-card space-y-3 rounded-2xl border border-[rgb(var(--border))] p-5 text-[rgb(var(--text-primary))] shadow-sm" onSubmit={onSubmit}>
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Настройки сайта</h2>
+        <div>
+          <h2 className="text-lg font-semibold">Настройки сайта</h2>
+          <p className="text-xs text-[rgb(var(--text-secondary))]">SITE_ID: <span className="font-mono">{siteId ?? "—"}</span></p>
+        </div>
         <button className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm" type="button" onClick={() => void loadSettings()}>
           Обновить
         </button>
