@@ -242,11 +242,13 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
     user.TOTPSecret = nil
 
     w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusOK)
-    json.NewEncoder(w).Encode(map[string]interface{}{
-        "token": token,
-        "user":  user,
-    })
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": token,
+		"user":  user,
+	}); err != nil {
+		log.Printf("Failed to encode login success response: %v", err)
+	}
 }
 
 func writeLoginError(w http.ResponseWriter) {
