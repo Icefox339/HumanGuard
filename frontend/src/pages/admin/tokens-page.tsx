@@ -68,7 +68,6 @@ export const TokensPage = () => {
                 <th className="px-3 py-2">Роль</th>
                 <th className="px-3 py-2">Название</th>
                 <th className="px-3 py-2">Префикс</th>
-                <th className="px-3 py-2">Токен</th>
                 <th className="px-3 py-2">Создан</th>
                 <th className="px-3 py-2">Статус</th>
                 <th className="px-3 py-2">Действия</th>
@@ -82,7 +81,6 @@ export const TokensPage = () => {
                   <td className="px-3 py-2">{token.user_role || '—'}</td>
                   <td className="px-3 py-2">{token.name}</td>
                   <td className="px-3 py-2">{token.prefix}</td>
-                  <td className="px-3 py-2"><code className="block max-w-xs break-all text-xs text-emerald-300">{token.key}</code></td>
                   <td className="px-3 py-2">{new Date(token.created_at).toLocaleString()}</td>
                   <td className="px-3 py-2">{token.revoked ? 'Отозван' : 'Активен'}</td>
                   <td className="px-3 py-2">

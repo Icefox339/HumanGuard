@@ -240,8 +240,7 @@ body {
 }
 
 .responsive-table-wrap table {
-  width: 100%;
-  min-width: max(980px, 100%);
+  min-width: 980px;
 }
 
 @keyframes auth-bg-flow {

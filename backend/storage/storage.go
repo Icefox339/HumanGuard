@@ -24,19 +24,19 @@ type Storage interface {
 }
 
 type UserOAuth struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	Provider  string    `json:"provider"`
-	OAuthID   string    `json:"oauth_id"`
-	CreatedAt time.Time `json:"created_at"`
+    ID        string    `json:"id"`
+    UserID    string    `json:"user_id"`
+    Provider  string    `json:"provider"`
+    OAuthID   string    `json:"oauth_id"`
+    CreatedAt time.Time `json:"created_at"`
 }
 
 type OAuthStorage interface {
-	AddUserOAuth(ctx context.Context, userID, provider, oauthID string) error
-	GetUserByOAuth(ctx context.Context, provider, oauthID string) (*User, error)
-	GetUserOAuths(ctx context.Context, userID string) ([]*UserOAuth, error)
-	RemoveUserOAuth(ctx context.Context, userID, provider string) error
-	GetOrCreateUserByOAuth(ctx context.Context, provider, oauthID, email, name string) (*User, error)
+    AddUserOAuth(ctx context.Context, userID, provider, oauthID string) error
+    GetUserByOAuth(ctx context.Context, provider, oauthID string) (*User, error)
+    GetUserOAuths(ctx context.Context, userID string) ([]*UserOAuth, error)
+    RemoveUserOAuth(ctx context.Context, userID, provider string) error
+    GetOrCreateUserByOAuth(ctx context.Context, provider, oauthID, email, name string) (*User, error)
 }
 
 type Config struct {
@@ -46,17 +46,17 @@ type Config struct {
 }
 
 type User struct {
-	ID           string     `json:"id"`
-	Email        string     `json:"email"`
-	Name         string     `json:"name"`
-	AvatarURL    *string    `json:"avatar_url"`
-	Role         string     `json:"role"`
-	TOTPSecret   *string    `json:"-"`
-	PasswordHash string     `json:"-"`
-	IsVerified   bool       `json:"is_verified"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-	LastLogin    *time.Time `json:"last_login"`
+	ID            string     `json:"id"`
+	Email         string     `json:"email"`
+	Name          string     `json:"name"`
+	AvatarURL     *string    `json:"avatar_url"`
+	Role          string     `json:"role"`
+	TOTPSecret    *string    `json:"-"`
+	PasswordHash  string     `json:"-"`
+	IsVerified    bool       `json:"is_verified"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	LastLogin     *time.Time `json:"last_login"`
 }
 
 type ModuleSettings struct {
@@ -170,7 +170,6 @@ type APIKey struct {
 	UserID     string     `json:"user_id"`
 	Name       string     `json:"name"`
 	KeyHash    string     `json:"-"`
-	KeyValue   string     `json:"key,omitempty"`
 	Prefix     string     `json:"prefix"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`

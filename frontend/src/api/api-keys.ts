@@ -3,7 +3,6 @@ import { api } from '@/api/client';
 export type ApiKey = {
   id: string;
   name: string;
-  key: string;
   prefix: string;
   created_at: string;
   expires_at?: string;
