@@ -29,7 +29,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         />
       )}
       <aside
-        className={`theme-surface fixed inset-y-0 left-0 z-40 h-screen w-[85vw] max-w-72 overflow-y-auto border-r theme-border p-4 transition-transform duration-200 sm:static sm:z-auto sm:h-auto sm:w-64 ${isOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}
+        className={`theme-surface fixed inset-y-0 left-0 z-40 h-screen w-[85vw] max-w-72 overflow-y-auto border-r theme-border p-4 transition-transform duration-200 sm:static sm:z-auto sm:h-auto sm:w-64 sm:shrink-0 ${isOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}
       >
         <h1 className="mb-6 flex items-center gap-2 text-xl font-semibold text-[rgb(var(--text-primary))]">
           <span className="brand-icon" aria-hidden="true">

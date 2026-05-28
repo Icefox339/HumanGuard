@@ -11,10 +11,10 @@ export const AppLayout = () => {
   return (
     <div className="app-shell flex min-h-screen text-[rgb(var(--text-primary))]">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Header onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
         <NavigationProgress />
-        <main className="w-full max-w-full overflow-x-hidden p-3 pb-20 sm:p-6">
+        <main className="w-full max-w-full overflow-x-auto p-3 pb-20 sm:p-6">
           <RouteTransition />
         </main>
       </div>
