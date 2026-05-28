@@ -186,7 +186,7 @@ export const SitesTable = () => {
                     <Link className="text-xs underline text-[rgb(var(--accent))]" to={`/sites/${site.id}/settings`}>Settings</Link>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="mobile-stack-actions flex gap-2">
                   <button className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" onClick={() => void onAction(() => activateSite(site.id))}>Activate</button>
                   <button className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" onClick={() => void onAction(() => suspendSite(site.id))}>Suspend</button>
                   <button className="interactive-chip rounded bg-red-700 px-3 py-1 text-sm text-white" onClick={() => void onAction(() => deleteSite(site.id))}>Delete</button>
