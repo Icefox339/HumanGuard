@@ -1,1498 +1,25 @@
 openapi: 3.0.0
 info:
-  version: 1.0.0
   title: HumanGuard API
   description: Система защиты веб-сайтов от ботов
+  version: 1.0.0
   license:
     name: MIT
 servers:
   - url: http://localhost:8080
-    description: Локальный сервер
-  - url: https://api.example.com
-    description: Production сервер
+    description: Local development server
 
-paths:
-  # ==================== HEALTH & METRICS ====================
-  /health:
-    get:
-      summary: Проверка состояния сервера
-      operationId: healthCheck
-      tags:
-        - System
-      responses:
-        '200':
-          description: Сервер работает
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-        default:
-          $ref: '#/components/responses/Error'
-
-  /metrics:
-    get:
-      summary: Prometheus метрики
-      operationId: getMetrics
-      tags:
-        - System
-      responses:
-        '200':
-          description: Метрики в формате Prometheus
-          content:
-            text/plain:
-              schema:
-                type: string
-
-  # ==================== AUTH ====================
-  /api/csrf:
-    get:
-      summary: Получить CSRF токен
-      operationId: getCSRFToken
-      tags:
-        - Auth
-      responses:
-        '200':
-          description: CSRF токен
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  csrf_token:
-                    type: string
-                    example: "abc123def456"
-
-  /api/users:
-    post:
-      summary: Регистрация нового пользователя
-      operationId: register
-      tags:
-        - Auth
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: user@example.com
-                password:
-                  type: string
-                  minLength: 8
-                  example: securePass123
-                name:
-                  type: string
-                  example: Иван Петров
-      responses:
-        '201':
-          description: Пользователь создан
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  user:
-                    $ref: '#/components/schemas/User'
-                  totp_secret:
-                    type: string
-                    example: JBSWY3DPEHPK3PXP
-                  qr_code_url:
-                    type: string
-                    example: otpauth://totp/HumanGuard:user@example.com?secret=xxx
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '409':
-          description: Email уже существует
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        default:
-          $ref: '#/components/responses/Error'
-
-  /api/login:
-    post:
-      summary: Вход в систему
-      operationId: login
-      tags:
-        - Auth
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                totp_code:
-                  type: string
-                  pattern: '^\d{6}$'
-                  example: "483921"
-      responses:
-        '200':
-          description: Успешный вход
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-                    example: eyJhbGciOiJIUzI1NiIs...
-                  user:
-                    $ref: '#/components/schemas/User'
-        '401':
-          description: Неверные учетные данные
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        default:
-          $ref: '#/components/responses/Error'
-
-  /api/logout:
-    post:
-      summary: Выход из системы (завершение сессии)
-      operationId: logout
-      tags:
-        - Auth
-      security:
-        - BearerAuth: []
-      responses:
-        '204':
-          description: Успешный выход
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  # ==================== OAUTH ====================
-  /api/auth/keycloak/login:
-    get:
-      summary: Начать OAuth авторизацию через Keycloak
-      operationId: keycloakLogin
-      tags:
-        - OAuth
-      responses:
-        '302':
-          description: Редирект на страницу авторизации Keycloak
-
-  /api/auth/keycloak/callback:
-    get:
-      summary: Callback для Keycloak OAuth
-      operationId: keycloakCallback
-      tags:
-        - OAuth
-      parameters:
-        - name: code
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: state
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '302':
-          description: Редирект на фронтенд с токеном
-
-  /api/auth/google/login:
-    get:
-      summary: Начать OAuth авторизацию через Google
-      operationId: googleLogin
-      tags:
-        - OAuth
-      responses:
-        '302':
-          description: Редирект на страницу авторизации Google
-
-  /api/auth/google/callback:
-    get:
-      summary: Callback для Google OAuth
-      operationId: googleCallback
-      tags:
-        - OAuth
-      parameters:
-        - name: code
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: state
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '302':
-          description: Редирект на фронтенд с токеном
-
-  /api/auth/github/login:
-    get:
-      summary: Начать OAuth авторизацию через GitHub
-      operationId: githubLogin
-      tags:
-        - OAuth
-      responses:
-        '302':
-          description: Редирект на страницу авторизации GitHub
-
-  /api/auth/github/callback:
-    get:
-      summary: Callback для GitHub OAuth
-      operationId: githubCallback
-      tags:
-        - OAuth
-      parameters:
-        - name: code
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: state
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '302':
-          description: Редирект на фронтенд с токеном
-
-  # ==================== USERS ====================
-  /api/me:
-    get:
-      summary: Получить информацию о текущем пользователе
-      operationId: getCurrentUser
-      tags:
-        - Users
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Данные пользователя
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /api/users:
-    get:
-      summary: Список всех пользователей (только админ)
-      operationId: listUsers
-      tags:
-        - Users
-        - Admin
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Список пользователей
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/User'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /api/users/{id}:
-    get:
-      summary: Получить пользователя по ID
-      operationId: getUser
-      tags:
-        - Users
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Данные пользователя
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '404':
-          description: Пользователь не найден
-        default:
-          $ref: '#/components/responses/Error'
-
-    put:
-      summary: Обновить пользователя
-      operationId: updateUser
-      tags:
-        - Users
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                role:
-                  type: string
-                  enum: [user, admin]
-                avatar_url:
-                  type: string
-                  format: uri
-      responses:
-        '200':
-          description: Пользователь обновлен
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          description: Пользователь не найден
-
-    delete:
-      summary: Удалить пользователя (только админ)
-      operationId: deleteUser
-      tags:
-        - Users
-        - Admin
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Пользователь удален
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          description: Пользователь не найден
-
-  /api/users/email/{email}:
-    get:
-      summary: Найти пользователя по email
-      operationId: getUserByEmail
-      tags:
-        - Users
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: email
-          in: path
-          required: true
-          schema:
-            type: string
-            format: email
-      responses:
-        '200':
-          description: Данные пользователя
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '404':
-          description: Пользователь не найден
-
-  /api/users/exists:
-    get:
-      summary: Проверить существование email
-      operationId: checkEmailExists
-      tags:
-        - Users
-      parameters:
-        - name: email
-          in: query
-          required: true
-          schema:
-            type: string
-            format: email
-      responses:
-        '200':
-          description: Результат проверки
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  exists:
-                    type: boolean
-        '400':
-          description: Email не указан
-
-  /api/users/oauth/{provider}/{oauthId}:
-    get:
-      summary: Найти пользователя по OAuth данным
-      operationId: getUserByOAuth
-      tags:
-        - Users
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: provider
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [google, github, keycloak]
-        - name: oauthId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Данные пользователя
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '404':
-          description: Пользователь не найден
-
-  /api/users/{id}/password:
-    post:
-      summary: Сменить пароль
-      operationId: changePassword
-      tags:
-        - Users
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [new_password]
-              properties:
-                old_password:
-                  type: string
-                  description: Обязателен для обычных пользователей
-                new_password:
-                  type: string
-                  minLength: 8
-      responses:
-        '204':
-          description: Пароль изменен
-        '400':
-          description: Неверный запрос
-        '401':
-          description: Неверный старый пароль
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /api/users/{id}/avatar:
-    post:
-      summary: Обновить аватар пользователя
-      operationId: updateAvatar
-      tags:
-        - Users
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [avatar_url]
-              properties:
-                avatar_url:
-                  type: string
-                  format: uri
-                  description: Data URL или ссылка на изображение
-      responses:
-        '204':
-          description: Аватар обновлен
-        '400':
-          description: avatar_url обязателен
-
-  # ==================== SITES ====================
-  /api/sites:
-    get:
-      summary: Список сайтов текущего пользователя
-      operationId: listSites
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Список сайтов
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Site'
-
-    post:
-      summary: Создать новый сайт
-      operationId: createSite
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [user_id, name, domain, origin_server]
-              properties:
-                user_id:
-                  type: string
-                  format: uuid
-                name:
-                  type: string
-                  example: Мой магазин
-                domain:
-                  type: string
-                  example: example-shop.com
-                origin_server:
-                  type: string
-                  format: uri
-                  example: http://10.0.1.100:8080
-      responses:
-        '201':
-          description: Сайт создан
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Site'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '409':
-          description: Сайт с таким доменом уже существует
-
-  /api/sites/{id}:
-    get:
-      summary: Получить сайт по ID
-      operationId: getSite
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Данные сайта
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Site'
-        '404':
-          description: Сайт не найден
-
-    put:
-      summary: Обновить сайт
-      operationId: updateSite
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                origin_server:
-                  type: string
-                  format: uri
-                status:
-                  type: string
-                  enum: [verifying, active, suspended]
-      responses:
-        '200':
-          description: Сайт обновлен
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Site'
-
-    delete:
-      summary: Удалить сайт
-      operationId: deleteSite
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Сайт удален
-        '404':
-          description: Сайт не найден
-
-  /api/sites/{id}/activate:
-    post:
-      summary: Активировать сайт
-      operationId: activateSite
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Сайт активирован
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Site'
-
-  /api/sites/{id}/suspend:
-    post:
-      summary: Заблокировать (приостановить) сайт
-      operationId: suspendSite
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Сайт заблокирован
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Site'
-
-  /api/sites/{id}/settings:
-    get:
-      summary: Получить настройки сайта
-      operationId: getSiteSettings
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Настройки сайта
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ModuleSettings'
-
-    put:
-      summary: Обновить настройки сайта
-      operationId: updateSiteSettings
-      tags:
-        - Sites
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ModuleSettings'
-      responses:
-        '200':
-          description: Настройки обновлены
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ModuleSettings'
-
-  # ==================== BLACKLIST ====================
-  /api/sites/{id}/blacklist:
-    get:
-      summary: Получить черный список IP для сайта
-      operationId: getBlacklist
-      tags:
-        - Blacklist
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Список заблокированных IP
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/BlacklistEntry'
-
-    post:
-      summary: Добавить IP в черный список
-      operationId: addToBlacklist
-      tags:
-        - Blacklist
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [ip]
-              properties:
-                ip:
-                  type: string
-                  format: ipv4
-                  example: 192.168.1.100
-                reason:
-                  type: string
-                  example: Подозрительная активность
-                expires_in_minutes:
-                  type: integer
-                  minimum: 1
-                  description: Время жизни блокировки в минутах (опционально)
-      responses:
-        '201':
-          description: IP добавлен в черный список
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BlacklistEntry'
-        '400':
-          description: Неверный IP адрес
-
-  /api/sites/{id}/blacklist/{ip}:
-    delete:
-      summary: Удалить IP из черного списка
-      operationId: removeFromBlacklist
-      tags:
-        - Blacklist
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: ip
-          in: path
-          required: true
-          schema:
-            type: string
-            format: ipv4
-      responses:
-        '204':
-          description: IP удален из черного списка
-        '404':
-          description: IP не найден в черном списке
-
-  # ==================== VISITOR SESSIONS ====================
-  /api/check:
-    post:
-      summary: Проверка сессии посетителя (для nginx reverse-proxy)
-      operationId: checkSession
-      tags:
-        - Sessions
-      description: Публичный эндпоинт, используется для проверки и создания сессий посетителей
-      parameters:
-        - name: X-Site-ID
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: X-Session-ID
-          in: header
-          required: false
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Результат проверки
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  action:
-                    type: string
-                    enum: [allow, captcha, block]
-                  session_id:
-                    type: string
-                    format: uuid
-                  risk_score:
-                    type: integer
-                    minimum: 0
-                    maximum: 100
-        '400':
-          description: X-Site-ID обязателен
-        '404':
-          description: Сайт не найден
-        '403':
-          description: Сайт не активен
-
-  /api/behavior/{id}:
-    post:
-      summary: Отправка поведенческих метрик сессии
-      operationId: submitBehavior
-      tags:
-        - Sessions
-      description: Публичный эндпоинт для сбора поведенческих данных
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: Session ID
-        - name: X-Site-ID
-          in: header
-          required: false
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [session_id, metrics]
-              properties:
-                session_id:
-                  type: string
-                  format: uuid
-                metrics:
-                  type: object
-                  additionalProperties: true
-      responses:
-        '202':
-          description: Метрики приняты в обработку
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: accepted
-
-  /api/sessions/{id}/analyze:
-    post:
-      summary: Запустить ручной анализ сессии
-      operationId: triggerAnalysis
-      tags:
-        - Sessions
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Результат анализа
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  risk_score:
-                    type: integer
-                  is_blocked:
-                    type: boolean
-
-  /api/sites/{id}/sessions:
-    get:
-      summary: Активные сессии посетителей сайта
-      operationId: getSiteSessions
-      tags:
-        - Sessions
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 100
-      responses:
-        '200':
-          description: Список сессий
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Session'
-
-  /api/sites/{id}/sessions/suspicious:
-    get:
-      summary: Подозрительные сессии посетителей сайта
-      operationId: getSuspiciousSessions
-      tags:
-        - Sessions
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: min_risk
-          in: query
-          schema:
-            type: integer
-            minimum: 0
-            maximum: 100
-            default: 60
-      responses:
-        '200':
-          description: Список подозрительных сессий
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Session'
-
-  /api/sites/{id}/stats:
-    get:
-      summary: Статистика по сессиям сайта
-      operationId: getSessionStats
-      tags:
-        - Sessions
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Статистика
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SessionStats'
-
-  # ==================== API KEYS ====================
-  /api/keys:
-    get:
-      summary: Список API ключей текущего пользователя
-      operationId: listApiKeys
-      tags:
-        - API Keys
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Список API ключей
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ApiKey'
-
-    post:
-      summary: Создать API ключ
-      operationId: createApiKey
-      tags:
-        - API Keys
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
-                expires_in_days:
-                  type: integer
-                  minimum: 1
-      responses:
-        '201':
-          description: API ключ создан
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreatedApiKey'
-        '403':
-          description: API ключи не могут создавать другие API ключи
-
-  /api/keys/{id}:
-    delete:
-      summary: Отозвать API ключ
-      operationId: revokeApiKey
-      tags:
-        - API Keys
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Ключ отозван
-        '403':
-          description: Не ваш ключ
-        '404':
-          description: Ключ не найден
-
-  /api/keys/{id}/permanent:
-    delete:
-      summary: Полностью удалить API ключ (только админ)
-      operationId: deleteApiKeyPermanent
-      tags:
-        - API Keys
-        - Admin
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Ключ удален
-
-  /api/admin/keys:
-    get:
-      summary: Список всех API ключей (только админ)
-      operationId: listAllApiKeys
-      tags:
-        - API Keys
-        - Admin
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Список всех API ключей
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AdminApiKey'
-
-  # ==================== FILES ====================
-  /api/files:
-    get:
-      summary: Список файлов пользователя
-      operationId: listFiles
-      tags:
-        - Files
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Список файлов
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/FileRecord'
-
-  /api/files/upload:
-    post:
-      summary: Загрузить файл
-      operationId: uploadFile
-      tags:
-        - Files
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: upload_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        '201':
-          description: Файл загружен
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FileRecord'
-        '413':
-          description: Файл слишком большой (максимум 5GB)
-        '415':
-          description: Неподдерживаемый тип файла
-
-  /api/files/upload/progress:
-    get:
-      summary: WebSocket для отслеживания прогресса загрузки
-      operationId: uploadProgressWS
-      tags:
-        - Files
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: upload_id
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '101':
-          description: WebSocket соединение установлено
-
-  /api/files/{id}:
-    get:
-      summary: Скачать файл
-      operationId: downloadFile
-      tags:
-        - Files
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Файл
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '404':
-          description: Файл не найден
-
-    delete:
-      summary: Удалить файл
-      operationId: deleteFile
-      tags:
-        - Files
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Файл удален
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  file_id:
-                    type: string
-                  original_name:
-                    type: string
-        '404':
-          description: Файл не найден
-
-  /api/files/share:
-    post:
-      summary: Создать публичную ссылку для файла
-      operationId: createFileShare
-      tags:
-        - Files
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [file_id]
-              properties:
-                file_id:
-                  type: string
-                  format: uuid
-                expires_in_hours:
-                  type: integer
-                  description: Время жизни ссылки в часах (опционально)
-      responses:
-        '200':
-          description: Ссылка создана
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-        '404':
-          description: Файл не найден
-
-  /api/files/share/{token}:
-    get:
-      summary: Скачать файл по публичной ссылке (без авторизации)
-      operationId: downloadByShareToken
-      tags:
-        - Files
-      parameters:
-        - name: token
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Файл
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '404':
-          description: Ссылка не найдена или истекла
-
-  # ==================== ADMIN SESSIONS ====================
-  /api/admin/users/sessions:
-    get:
-      summary: Список всех пользовательских сессий (только админ)
-      operationId: listAllUserSessions
-      tags:
-        - Admin
-        - Sessions
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Список сессий
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  total:
-                    type: integer
-                  sessions:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/UserSession'
-
-  /api/admin/users/sessions/stats:
-    get:
-      summary: Статистика по пользовательским сессиям (только админ)
-      operationId: getUserSessionsStats
-      tags:
-        - Admin
-        - Sessions
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Статистика
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  total_sessions:
-                    type: integer
-                  total_users:
-                    type: integer
-                  sessions_per_user:
-                    type: object
-                    additionalProperties:
-                      type: integer
-                  users_info:
-                    type: object
-                    additionalProperties:
-                      type: object
-                      properties:
-                        email:
-                          type: string
-                        role:
-                          type: string
-
-  /api/admin/users/sessions/{session_id}:
-    delete:
-      summary: Принудительно завершить сессию пользователя (только админ)
-      operationId: forceRevokeSession
-      tags:
-        - Admin
-        - Sessions
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Сессия завершена
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  session_id:
-                    type: string
-                  user_id:
-                    type: string
-                  user_email:
-                    type: string
-        '404':
-          description: Сессия не найдена
+tags:
+  - name: System
+  - name: Auth
+  - name: OAuth
+  - name: Users
+  - name: Sites
+  - name: Blacklist
+  - name: Sessions
+  - name: API Keys
+  - name: Files
+  - name: Admin
 
 components:
   securitySchemes:
@@ -1508,46 +35,34 @@ components:
   schemas:
     Error:
       type: object
-      required: [title, detail, requestId, timestamp]
       properties:
         title:
           type: string
-          example: Bad Request
         detail:
           type: string
-          example: Invalid request body
         requestId:
           type: string
-          format: uuid
-          example: 018f4e8b-1234-7abc-9def-0123456789ab
         timestamp:
           type: string
           format: date-time
-          example: "2026-04-24T12:00:00Z"
 
     User:
       type: object
       properties:
         id:
           type: string
-          format: uuid
         email:
           type: string
-          format: email
         name:
           type: string
         avatar_url:
           type: string
-          format: uri
           nullable: true
         role:
           type: string
           enum: [user, admin]
         is_verified:
           type: boolean
-        oauth_provider:
-          type: string
-          nullable: true
         created_at:
           type: string
           format: date-time
@@ -1564,17 +79,14 @@ components:
       properties:
         id:
           type: string
-          format: uuid
         user_id:
           type: string
-          format: uuid
         name:
           type: string
         domain:
           type: string
         origin_server:
           type: string
-          format: uri
         status:
           type: string
           enum: [verifying, active, suspended]
@@ -1592,10 +104,8 @@ components:
       properties:
         id:
           type: string
-          format: uuid
         site_id:
           type: string
-          format: uuid
         ip:
           type: string
         user_agent:
@@ -1618,7 +128,6 @@ components:
           type: string
         metrics:
           type: object
-          additionalProperties: true
         created_at:
           type: string
           format: date-time
@@ -1634,19 +143,14 @@ components:
       properties:
         total:
           type: integer
-          format: int64
         active:
           type: integer
-          format: int64
         blocked:
           type: integer
-          format: int64
         avg_risk:
           type: number
-          format: float
         unique_ips:
           type: integer
-          format: int64
 
     ModuleSettings:
       type: object
@@ -1668,8 +172,6 @@ components:
               type: boolean
             sample_rate:
               type: integer
-              minimum: 0
-              maximum: 100
         analyzer:
           type: object
           properties:
@@ -1710,13 +212,10 @@ components:
               type: boolean
             low_risk_action:
               type: string
-              enum: [allow, log]
             medium_risk_action:
               type: string
-              enum: [allow, captcha, challenge]
             high_risk_action:
               type: string
-              enum: [block, captcha, redirect]
             block_duration_minutes:
               type: integer
             add_to_blacklist:
@@ -1725,7 +224,6 @@ components:
               type: integer
             captcha_provider:
               type: string
-              enum: [hcaptcha, recaptcha]
             captcha_sitekey:
               type: string
             block_message:
@@ -1736,10 +234,8 @@ components:
       properties:
         id:
           type: string
-          format: uuid
         site_id:
           type: string
-          format: uuid
         ip:
           type: string
         reason:
@@ -1757,7 +253,6 @@ components:
       properties:
         id:
           type: string
-          format: uuid
         name:
           type: string
         prefix:
@@ -1783,7 +278,6 @@ components:
           properties:
             key:
               type: string
-              description: Полный ключ (показывается только при создании)
 
     AdminApiKey:
       allOf:
@@ -1792,10 +286,8 @@ components:
           properties:
             user_id:
               type: string
-              format: uuid
             user_email:
               type: string
-              format: email
             user_name:
               type: string
             user_role:
@@ -1806,24 +298,18 @@ components:
       properties:
         id:
           type: string
-          format: uuid
         user_id:
           type: string
-          format: uuid
         name:
           type: string
-          description: Имя файла в хранилище
         original_name:
           type: string
-          description: Оригинальное имя файла
         size:
           type: integer
-          format: int64
         mime_type:
           type: string
         hash:
           type: string
-          description: SHA-256 хеш файла
         path:
           type: string
         created_at:
@@ -1835,13 +321,10 @@ components:
       properties:
         id:
           type: string
-          format: uuid
         user_id:
           type: string
-          format: uuid
         email:
           type: string
-          format: email
         role:
           type: string
         created_at:
@@ -1858,50 +341,1247 @@ components:
         user_agent:
           type: string
 
-  responses:
-    BadRequest:
-      description: Неверный запрос
-      content:
-        application/json:
+paths:
+  # ==================== SYSTEM ====================
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /metrics:
+    get:
+      tags: [System]
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: Metrics in Prometheus format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ==================== AUTH ====================
+  /api/csrf:
+    get:
+      tags: [Auth]
+      summary: Get CSRF token
+      responses:
+        '200':
+          description: CSRF token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  csrf_token:
+                    type: string
+
+  /api/users:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+                name:
+                  type: string
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  totp_secret:
+                    type: string
+                  qr_code_url:
+                    type: string
+        '400':
+          description: Bad request
+        '409':
+          description: Email already exists
+
+  /api/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                totp_code:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+
+  /api/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Logout successful
+
+  # ==================== OAUTH ====================
+  /api/auth/keycloak/login:
+    get:
+      tags: [OAuth]
+      summary: Keycloak OAuth login
+      responses:
+        '302':
+          description: Redirect to Keycloak
+
+  /api/auth/keycloak/callback:
+    get:
+      tags: [OAuth]
+      summary: Keycloak OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
           schema:
-            $ref: '#/components/schemas/Error'
-    Unauthorized:
-      description: Не авторизован
-      content:
-        application/json:
+            type: string
+        - name: state
+          in: query
+          required: true
           schema:
-            $ref: '#/components/schemas/Error'
-    Forbidden:
-      description: Доступ запрещен
-      content:
-        application/json:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend
+
+  /api/auth/google/login:
+    get:
+      tags: [OAuth]
+      summary: Google OAuth login
+      responses:
+        '302':
+          description: Redirect to Google
+
+  /api/auth/google/callback:
+    get:
+      tags: [OAuth]
+      summary: Google OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
           schema:
-            $ref: '#/components/schemas/Error'
-    NotFound:
-      description: Ресурс не найден
-      content:
-        application/json:
+            type: string
+        - name: state
+          in: query
+          required: true
           schema:
-            $ref: '#/components/schemas/Error'
-    TooManyRequests:
-      description: Слишком много запросов
-      headers:
-        X-RateLimit-Limit:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend
+
+  /api/auth/github/login:
+    get:
+      tags: [OAuth]
+      summary: GitHub OAuth login
+      responses:
+        '302':
+          description: Redirect to GitHub
+
+  /api/auth/github/callback:
+    get:
+      tags: [OAuth]
+      summary: GitHub OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend
+
+  # ==================== USERS ====================
+  /api/me:
+    get:
+      tags: [Users]
+      summary: Get current user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/users:
+    get:
+      tags: [Users, Admin]
+      summary: List all users (admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /api/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+
+    put:
+      tags: [Users]
+      summary: Update user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                  enum: [user, admin]
+                avatar_url:
+                  type: string
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          description: Forbidden
+        '404':
+          description: User not found
+
+    delete:
+      tags: [Users, Admin]
+      summary: Delete user (admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: User deleted
+
+  /api/users/email/{email}:
+    get:
+      tags: [Users]
+      summary: Find user by email
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+
+  /api/users/exists:
+    get:
+      tags: [Users]
+      summary: Check if email exists
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exists:
+                    type: boolean
+
+  /api/users/oauth/{provider}/{oauthId}:
+    get:
+      tags: [Users]
+      summary: Find user by OAuth
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, github, keycloak]
+        - name: oauthId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+
+  /api/users/{id}/password:
+    post:
+      tags: [Users]
+      summary: Change password
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_password]
+              properties:
+                old_password:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        '204':
+          description: Password changed
+        '401':
+          description: Invalid old password
+
+  /api/users/{id}/avatar:
+    post:
+      tags: [Users]
+      summary: Update avatar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [avatar_url]
+              properties:
+                avatar_url:
+                  type: string
+      responses:
+        '204':
+          description: Avatar updated
+
+  # ==================== SITES ====================
+  /api/sites:
+    get:
+      tags: [Sites]
+      summary: List user sites
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of sites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Site'
+
+    post:
+      tags: [Sites]
+      summary: Create site
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, name, domain, origin_server]
+              properties:
+                user_id:
+                  type: string
+                name:
+                  type: string
+                domain:
+                  type: string
+                origin_server:
+                  type: string
+      responses:
+        '201':
+          description: Site created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        '409':
+          description: Domain already exists
+
+  /api/sites/{id}:
+    get:
+      tags: [Sites]
+      summary: Get site
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Site details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        '404':
+          description: Site not found
+
+    put:
+      tags: [Sites]
+      summary: Update site
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                origin_server:
+                  type: string
+                status:
+                  type: string
+                  enum: [verifying, active, suspended]
+      responses:
+        '200':
+          description: Site updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+
+    delete:
+      tags: [Sites]
+      summary: Delete site
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Site deleted
+
+  /api/sites/{id}/activate:
+    post:
+      tags: [Sites]
+      summary: Activate site
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Site activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+
+  /api/sites/{id}/suspend:
+    post:
+      tags: [Sites]
+      summary: Suspend site
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Site suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+
+  /api/sites/{id}/settings:
+    get:
+      tags: [Sites]
+      summary: Get site settings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Site settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleSettings'
+
+    put:
+      tags: [Sites]
+      summary: Update site settings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleSettings'
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleSettings'
+
+  # ==================== BLACKLIST ====================
+  /api/sites/{id}/blacklist:
+    get:
+      tags: [Blacklist]
+      summary: Get blacklist
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Blacklist entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlacklistEntry'
+
+    post:
+      tags: [Blacklist]
+      summary: Add IP to blacklist
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ip]
+              properties:
+                ip:
+                  type: string
+                reason:
+                  type: string
+                expires_in_minutes:
+                  type: integer
+      responses:
+        '201':
+          description: IP added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlacklistEntry'
+        '400':
+          description: Invalid IP
+
+  /api/sites/{id}/blacklist/{ip}:
+    delete:
+      tags: [Blacklist]
+      summary: Remove IP from blacklist
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ip
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: IP removed
+        '404':
+          description: IP not found
+
+  # ==================== SESSIONS ====================
+  /api/check:
+    post:
+      tags: [Sessions]
+      summary: Check visitor session (for nginx proxy)
+      parameters:
+        - name: X-Site-ID
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Session-ID
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  action:
+                    type: string
+                    enum: [allow, captcha, block]
+                  session_id:
+                    type: string
+                  risk_score:
+                    type: integer
+        '400':
+          description: X-Site-ID required
+        '403':
+          description: Site not active
+        '404':
+          description: Site not found
+
+  /api/behavior/{id}:
+    post:
+      tags: [Sessions]
+      summary: Submit behavior metrics
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Site-ID
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id, metrics]
+              properties:
+                session_id:
+                  type: string
+                metrics:
+                  type: object
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: accepted
+
+  /api/sessions/{id}/analyze:
+    post:
+      tags: [Sessions]
+      summary: Trigger manual session analysis
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  risk_score:
+                    type: integer
+                  is_blocked:
+                    type: boolean
+
+  /api/sites/{id}/sessions:
+    get:
+      tags: [Sessions]
+      summary: Get site active sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
           schema:
             type: integer
-        X-RateLimit-Remaining:
+            default: 100
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+
+  /api/sites/{id}/sessions/suspicious:
+    get:
+      tags: [Sessions]
+      summary: Get suspicious sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: min_risk
+          in: query
           schema:
             type: integer
-        Retry-After:
+            minimum: 0
+            maximum: 100
+            default: 60
+      responses:
+        '200':
+          description: List of suspicious sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+
+  /api/sites/{id}/stats:
+    get:
+      tags: [Sessions]
+      summary: Get session statistics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
           schema:
-            type: integer
-      content:
-        application/json:
+            type: string
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStats'
+
+  # ==================== API KEYS ====================
+  /api/keys:
+    get:
+      tags: [API Keys]
+      summary: List user API keys
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
+
+    post:
+      tags: [API Keys]
+      summary: Create API key
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                expires_in_days:
+                  type: integer
+                  minimum: 1
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedApiKey'
+        '403':
+          description: API keys cannot create API keys
+
+  /api/keys/{id}:
+    delete:
+      tags: [API Keys]
+      summary: Revoke API key
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
           schema:
-            $ref: '#/components/schemas/Error'
-    Error:
-      description: Ошибка
-      content:
-        application/problem+json:
+            type: string
+      responses:
+        '204':
+          description: Key revoked
+        '403':
+          description: Not your key
+        '404':
+          description: Key not found
+
+  /api/keys/{id}/permanent:
+    delete:
+      tags: [API Keys, Admin]
+      summary: Permanently delete API key (admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
           schema:
-            $ref: '#/components/schemas/Error'
+            type: string
+      responses:
+        '204':
+          description: Key deleted
+
+  /api/admin/keys:
+    get:
+      tags: [API Keys, Admin]
+      summary: List all API keys (admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of all API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminApiKey'
+
+  # ==================== FILES ====================
+  /api/files:
+    get:
+      tags: [Files]
+      summary: List user files
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of files
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileRecord'
+
+  /api/files/upload:
+    post:
+      tags: [Files]
+      summary: Upload file
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: upload_id
+          in: query
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: File uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileRecord'
+        '413':
+          description: File too large (max 5GB)
+        '415':
+          description: Unsupported file type
+
+  /api/files/upload/progress:
+    get:
+      tags: [Files]
+      summary: WebSocket for upload progress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: upload_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '101':
+          description: WebSocket connection established
+
+  /api/files/{id}:
+    get:
+      tags: [Files]
+      summary: Download file
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found
+
+    delete:
+      tags: [Files]
+      summary: Delete file
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  file_id:
+                    type: string
+                  original_name:
+                    type: string
+        '404':
+          description: File not found
+
+  /api/files/share:
+    post:
+      tags: [Files]
+      summary: Create shareable link
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_id]
+              properties:
+                file_id:
+                  type: string
+                expires_in_hours:
+                  type: integer
+      responses:
+        '200':
+          description: Share token created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '404':
+          description: File not found
+
+  /api/files/share/{token}:
+    get:
+      tags: [Files]
+      summary: Download via share token (public)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Token not found or expired
+
+  # ==================== ADMIN ====================
+  /api/admin/users/sessions:
+    get:
+      tags: [Admin]
+      summary: List all user sessions (admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserSession'
+
+  /api/admin/users/sessions/stats:
+    get:
+      tags: [Admin]
+      summary: Get user sessions statistics (admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_sessions:
+                    type: integer
+                  total_users:
+                    type: integer
+                  sessions_per_user:
+                    type: object
+                  users_info:
+                    type: object
+
+  /api/admin/users/sessions/{session_id}:
+    delete:
+      tags: [Admin]
+      summary: Force revoke user session (admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  session_id:
+                    type: string
+                  user_id:
+                    type: string
+                  user_email:
+                    type: string
+        '404':
+          description: Session not found
