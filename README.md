@@ -198,12 +198,7 @@
 ### Алгоритм запуска ПО для отладки с помощью docker compose
 > Для отладки проекта без разворачивания nginx с TLS
 
-#### 1. Настроить .env файлы для отладки в `/frontend/.env` и в `/infra/.env`
-
-`/frontend/.env`:
-```
-VITE_API_URL=http://localhost:8080
-```
+#### 1. Настроить .env файл для отладки в `/infra/.env`
 
 #### 2. Поднять сервис в docker compose
 

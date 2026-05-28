@@ -225,10 +225,12 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
     h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, realIP, r.UserAgent())
     token, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
     if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
-        return
-    }
+		w.WriteHeader(http.StatusInternalServerError)
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "internal error"}); err != nil {
+			log.Printf("Failed to encode internal error response: %v", err)
+	}
+    return
+}
 
     go func() {
         if err := h.storage.UpdateLastLogin(context.Background(), user.ID); err != nil {
@@ -240,19 +242,23 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
     user.TOTPSecret = nil
 
     w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusOK)
-    json.NewEncoder(w).Encode(map[string]interface{}{
-        "token": token,
-        "user":  user,
-    })
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": token,
+		"user":  user,
+	}); err != nil {
+		log.Printf("Failed to encode login success response: %v", err)
+	}
 }
 
 func writeLoginError(w http.ResponseWriter) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(http.StatusUnauthorized)
-    json.NewEncoder(w).Encode(map[string]string{
+    if err := json.NewEncoder(w).Encode(map[string]string{
         "error": "invalid email or password or verification code",
-    })
+    }); err != nil {
+        log.Printf("Failed to encode login error response: %v", err)
+    }
 }
 
 func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
