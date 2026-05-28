@@ -37,7 +37,7 @@ export const TokensPage = () => {
   return (
     <section className="theme-card space-y-4 rounded-2xl border border-[rgb(var(--border))] p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-[rgb(var(--text-primary))]">Token manager</h2>
+        <h2 className="text-xl font-semibold text-[rgb(var(--text-primary))]">Менеджер токенов</h2>
         <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-sm" type="button" onClick={() => void load()}>
           Обновить
         </button>
