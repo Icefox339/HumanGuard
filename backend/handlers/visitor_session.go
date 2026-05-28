@@ -94,6 +94,7 @@ func (h *VisitorSessionHandler) GetSessionStats(w http.ResponseWriter, r *http.R
 }
 
 func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Request) {
+
 	siteID := r.Header.Get("X-Site-ID")
 	if siteID == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
@@ -135,6 +136,9 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 			sessionID = cookie.Value
 		}
 	}
+
+	ip := getRealIP(r)
+	log.Printf("IP: %s | SiteID: %s | SessionID: %s", ip, siteID, sessionID)
 
 	var session *storage.ActiveSession
 
