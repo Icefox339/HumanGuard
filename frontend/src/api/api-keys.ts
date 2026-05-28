@@ -18,6 +18,7 @@ export type AdminApiKey = ApiKey & {
   user_id: string;
   user_email: string;
   user_name: string;
+  user_role: string;
 };
 
 export const listApiKeys = async () => {
@@ -37,4 +38,8 @@ export const revokeApiKey = async (id: string) => {
 export const listAllApiKeys = async () => {
   const response = await api.get<AdminApiKey[]>('/admin/keys');
   return response.data;
+};
+
+export const deleteApiKeyPermanently = async (id: string) => {
+  await api.delete(`/keys/${id}/permanent`);
 };

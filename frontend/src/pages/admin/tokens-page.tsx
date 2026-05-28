@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AdminApiKey, listAllApiKeys, revokeApiKey } from '@/api/api-keys';
+import { AdminApiKey, deleteApiKeyPermanently, listAllApiKeys, revokeApiKey } from '@/api/api-keys';
 
 export const TokensPage = () => {
   const [tokens, setTokens] = useState<AdminApiKey[]>([]);
@@ -23,11 +23,22 @@ export const TokensPage = () => {
     void load();
   }, []);
 
-  const onDelete = async (id: string) => {
-    if (!window.confirm('Удалить токен пользователя?')) return;
+  const onRevoke = async (id: string) => {
+    if (!window.confirm('Отозвать токен пользователя?')) return;
     setError(null);
     try {
       await revokeApiKey(id);
+      await load();
+    } catch {
+      setError('Не удалось отозвать токен пользователя.');
+    }
+  };
+
+  const onDelete = async (id: string) => {
+    if (!window.confirm('Удалить токен из системы безвозвратно?')) return;
+    setError(null);
+    try {
+      await deleteApiKeyPermanently(id);
       await load();
     } catch {
       setError('Не удалось удалить токен пользователя.');
@@ -54,6 +65,7 @@ export const TokensPage = () => {
               <tr className="text-left text-[rgb(var(--text-secondary))]">
                 <th className="px-3 py-2">Пользователь</th>
                 <th className="px-3 py-2">Email</th>
+                <th className="px-3 py-2">Роль</th>
                 <th className="px-3 py-2">Название</th>
                 <th className="px-3 py-2">Префикс</th>
                 <th className="px-3 py-2">Создан</th>
@@ -66,18 +78,28 @@ export const TokensPage = () => {
                 <tr key={token.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
                   <td className="px-3 py-2">{token.user_name || '—'}</td>
                   <td className="px-3 py-2">{token.user_email || '—'}</td>
+                  <td className="px-3 py-2">{token.user_role || '—'}</td>
                   <td className="px-3 py-2">{token.name}</td>
                   <td className="px-3 py-2">{token.prefix}</td>
                   <td className="px-3 py-2">{new Date(token.created_at).toLocaleString()}</td>
                   <td className="px-3 py-2">{token.revoked ? 'Отозван' : 'Активен'}</td>
                   <td className="px-3 py-2">
-                    <button
-                      className="interactive-chip rounded border border-red-400/40 px-3 py-1 text-sm text-red-300"
-                      onClick={() => void onDelete(token.id)}
-                      disabled={token.revoked}
-                    >
-                      {token.revoked ? 'Отозван' : 'Удалить'}
-                    </button>
+                    <div className="flex gap-2">
+                      {!token.revoked && (
+                        <button
+                          className="interactive-chip rounded border border-amber-400/40 px-3 py-1 text-sm text-amber-300"
+                          onClick={() => void onRevoke(token.id)}
+                        >
+                          Отозвать
+                        </button>
+                      )}
+                      <button
+                        className="interactive-chip rounded border border-red-400/40 px-3 py-1 text-sm text-red-300"
+                        onClick={() => void onDelete(token.id)}
+                      >
+                        Удалить
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
