@@ -64,6 +64,7 @@ func (d *Detector) Prefilter(ctx context.Context, sessionID string, ip, userAgen
 
 	risk := 0
 
+	// Проверка блэклиста (уже есть, оставляем)
 	blacklisted, err := d.store.IsBlacklisted(ctx, session.SiteID, ip)
 	if err == nil && blacklisted {
 		return &PrefilterResult{

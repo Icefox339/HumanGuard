@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"humanguard/metrics"
 	"humanguard/storage"
 )
 
@@ -116,6 +117,17 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	ip := getRealIP(r)
+	blacklisted, err := h.storage.IsBlacklisted(r.Context(), siteID, ip)
+	if err == nil && blacklisted {
+		metrics.BlockedRequests.Inc()
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{
+			"error":  "your IP is blocked",
+			"action": "block",
+		})
+		return
+	}
+
 	sessionID := r.Header.Get("X-Session-ID")
 	if sessionID == "" {
 		cookie, err := r.Cookie("hg_session")
@@ -130,7 +142,7 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 		session = &storage.ActiveSession{
 			ID:        uuid.New().String(),
 			SiteID:    siteID,
-			IP:        getRealIP(r),
+			IP:        ip,
 			UserAgent: r.UserAgent(),
 			IsActive:  true,
 			Metrics:   make(map[string]interface{}),
@@ -166,14 +178,15 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := h.storage.UpdateSessionActivity(r.Context(), sessionID); err != nil {
-		// Логируем ошибку, но не прерываем выполнение, так как это не критично
 		log.Printf("Failed to update session activity for %s: %v", sessionID, err)
 	}
 
 	action := "allow"
 	if session.RiskScore >= 80 {
+		metrics.BlockedRequests.Inc()
 		action = "block"
 	} else if session.RiskScore >= 50 {
+		metrics.CaptchaRequests.Inc()
 		action = "captcha"
 	}
 
@@ -182,4 +195,12 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 		"session_id": sessionID,
 		"risk_score": session.RiskScore,
 	})
+}
+
+func writeJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
