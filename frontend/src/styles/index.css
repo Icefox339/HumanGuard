@@ -301,3 +301,25 @@ body {
     transition: none;
   }
 }
+
+.responsive-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.responsive-table-wrap table {
+  min-width: 720px;
+}
+
+@media (max-width: 640px) {
+  .mobile-stack-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-stack-actions > * {
+    width: 100%;
+  }
+}

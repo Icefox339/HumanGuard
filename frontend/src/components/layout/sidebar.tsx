@@ -2,11 +2,11 @@ import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/app/store/auth-store';
 
 const mainLinks = [
-  ['Dashboard', '/dashboard'],
-  ['Sites', '/sites'],
-  ['Files', '/files'],
-  ['Profile', '/profile'],
-  ['API Keys', '/api-keys']
+  ['Панель', '/dashboard'],
+  ['Сайты', '/sites'],
+  ['Файлы', '/files'],
+  ['Профиль', '/profile'],
+  ['Ключи API', '/api-keys']
 ];
 
 type SidebarProps = {
@@ -24,12 +24,12 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         <button
           className="fixed inset-0 z-30 bg-slate-900/35 sm:hidden"
           onClick={onClose}
-          aria-label="Close menu"
+          aria-label="Закрыть меню"
           type="button"
         />
       )}
       <aside
-        className={`theme-surface fixed inset-y-0 left-0 z-40 w-72 border-r theme-border p-4 transition-transform duration-200 sm:static sm:z-auto sm:w-64 ${isOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}
+        className={`theme-surface fixed inset-y-0 left-0 z-40 h-screen w-[85vw] max-w-72 overflow-y-auto border-r theme-border p-4 transition-transform duration-200 sm:static sm:z-auto sm:h-auto sm:w-64 ${isOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}
       >
         <h1 className="mb-6 flex items-center gap-2 text-xl font-semibold text-[rgb(var(--text-primary))]">
           <span className="brand-icon" aria-hidden="true">
@@ -38,7 +38,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <circle cx="10" cy="9.4" r="2.2" fill="white" fillOpacity="0.95" />
             </svg>
           </span>
-          HumanGuard
+          ХьюмэнГард
         </h1>
         <nav className="flex flex-col gap-1">
           {mainLinks.map(([label, href]) => (
@@ -61,16 +61,12 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 to="/admin/users"
                 onClick={onClose}
                 className={({ isActive }) => (isActive ? 'nav-link nav-link--active' : 'nav-link')}
-              >
-                Users
-              </NavLink>
+              >Пользователи</NavLink>
               <NavLink
                 to="/admin/tokens"
                 onClick={onClose}
                 className={({ isActive }) => (isActive ? 'nav-link nav-link--active' : 'nav-link')}
-              >
-                Token manager
-              </NavLink>
+              >Менеджер токенов</NavLink>
             </>
           )}
         </nav>

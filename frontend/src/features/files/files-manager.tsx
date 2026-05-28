@@ -143,13 +143,13 @@ export const FilesManager = () => {
   return (
     <section className="space-y-4">
       <header className="theme-card rounded-2xl border border-[rgb(var(--border))] p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-[rgb(var(--text-primary))]">Files</h2>
+        <h2 className="text-lg font-semibold text-[rgb(var(--text-primary))]">Файлы</h2>
         <p className="mt-1 text-sm text-[rgb(var(--text-secondary))]">
-          Здесь отображаются только ваши файлы. Поддерживается загрузка больших файлов (&gt; 1 GB).
+          Здесь отображаются только ваши файлы. Поддерживается загрузка больших файлов (&gt; 1 ГБ).
         </p>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <input className="form-input max-w-md rounded-lg px-3 py-2" onChange={onChooseFile} type="file" />
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <input className="form-input w-full max-w-md rounded-lg px-3 py-2" onChange={onChooseFile} type="file" />
           <button className="interactive-chip theme-button px-4 py-2 disabled:opacity-60" disabled={!selectedFile || uploading} onClick={() => void onUpload()} type="button">
             {uploading ? 'Загрузка…' : 'Загрузить файл'}
           </button>
@@ -178,13 +178,13 @@ export const FilesManager = () => {
             </summary>
             <ul className="mt-2 space-y-1">
               <li>Операция: {errorDetails.operation}</li>
-              <li>Status: {errorDetails.status ?? 'n/a'}</li>
-              <li>Code: {errorDetails.code ?? 'n/a'}</li>
-              <li>Method: {errorDetails.method ?? 'n/a'}</li>
-              <li>URL: {errorDetails.url ?? 'n/a'}</li>
-              <li>Backend message: {errorDetails.backendError ?? 'n/a'}</li>
-              <li>File: {errorDetails.fileName ?? 'n/a'}</li>
-              <li>File size: {typeof errorDetails.fileSize === 'number' ? formatBytes(errorDetails.fileSize) : 'n/a'}</li>
+              <li>Статус: {errorDetails.status ?? 'н/д'}</li>
+              <li>Код: {errorDetails.code ?? 'н/д'}</li>
+              <li>Метод: {errorDetails.method ?? 'н/д'}</li>
+              <li>URL: {errorDetails.url ?? 'н/д'}</li>
+              <li>Сообщение сервера: {errorDetails.backendError ?? 'н/д'}</li>
+              <li>Файл: {errorDetails.fileName ?? 'н/д'}</li>
+              <li>Размер файла: {typeof errorDetails.fileSize === 'number' ? formatBytes(errorDetails.fileSize) : 'н/д'}</li>
             </ul>
           </details>
         )}
@@ -216,16 +216,16 @@ export const FilesManager = () => {
                     {file.created_at ? new Date(file.created_at).toLocaleString() : 'Дата неизвестна'}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="mobile-stack-actions flex gap-2">
                   <button className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" type="button" onClick={() => void onShare(file)}>
-                    Share
+                    Поделиться
                   </button>
                   <a className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" download href={getDownloadUrl(file)} rel="noreferrer" target="_blank">
                     Скачать
                   </a>
                 </div>
               </div>
-              {shareTokens[file.id] && <p className="mt-2 break-all text-xs text-[rgb(var(--text-secondary))]">Share URL: {shareTokens[file.id]} (скопировано)</p>}
+              {shareTokens[file.id] && <p className="mt-2 break-all text-xs text-[rgb(var(--text-secondary))]">Ссылка для передачи: {shareTokens[file.id]} (скопировано)</p>}
             </article>
           ))}
         </div>

@@ -1,11 +1,35 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { createApiKey, CreatedApiKey, listApiKeys, ApiKey, revokeApiKey } from '@/api/api-keys';
 
+const CREATED_KEYS_STORAGE_KEY = 'created_api_keys_by_id';
+
+const readCreatedKeys = (): Record<string, string> => {
+  try {
+    const raw = window.sessionStorage.getItem(CREATED_KEYS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.entries(parsed).reduce<Record<string, string>>((acc, [key, value]) => {
+      if (typeof value === 'string') {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+};
+
+const saveCreatedKeys = (tokensById: Record<string, string>) => {
+  window.sessionStorage.setItem(CREATED_KEYS_STORAGE_KEY, JSON.stringify(tokensById));
+};
+
 export const ApiKeysPage = () => {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [name, setName] = useState('');
   const [expiresInDays, setExpiresInDays] = useState('');
   const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null);
+  const [createdKeysById, setCreatedKeysById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +48,7 @@ export const ApiKeysPage = () => {
   };
 
   useEffect(() => {
+    setCreatedKeysById(readCreatedKeys());
     void load();
   }, []);
 
@@ -40,6 +65,11 @@ export const ApiKeysPage = () => {
         ...(expiresInDays && Number.isFinite(expires) && expires > 0 ? { expires_in_days: expires } : {})
       });
       setCreatedKey(data);
+      setCreatedKeysById((prev) => {
+        const next = { ...prev, [data.id]: data.key };
+        saveCreatedKeys(next);
+        return next;
+      });
       setName('');
       setExpiresInDays('');
       await load();
@@ -107,6 +137,12 @@ export const ApiKeysPage = () => {
                 <div>
                   <p className="font-medium text-[rgb(var(--text-primary))]">{key.name}</p>
                   <p className="text-sm text-[rgb(var(--text-secondary))]">Префикс: {key.prefix}</p>
+                  {createdKeysById[key.id] && (
+                    <>
+                      <p className="mt-1 text-xs text-emerald-300">Сохранённый токен (из этой сессии):</p>
+                      <code className="block break-all text-xs text-emerald-300">{createdKeysById[key.id]}</code>
+                    </>
+                  )}
                   <p className="text-xs text-[rgb(var(--text-secondary))]">Создан: {new Date(key.created_at).toLocaleString()}</p>
                 </div>
                 <button className="interactive-chip rounded border border-red-400/40 px-3 py-1 text-sm text-red-300" onClick={() => void onDelete(key.id)} disabled={key.revoked}>
