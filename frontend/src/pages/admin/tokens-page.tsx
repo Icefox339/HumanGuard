@@ -48,7 +48,7 @@ export const TokensPage = () => {
       {!loading && tokens.length === 0 && !error && <p className="text-sm text-[rgb(var(--text-secondary))]">Токенов не найдено.</p>}
 
       {tokens.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))]">
+        <div className="responsive-table-wrap rounded-xl border border-[rgb(var(--border))]">
           <table className="min-w-full border-collapse text-sm">
             <thead className="bg-[rgb(var(--bg-main))]">
               <tr className="text-left text-[rgb(var(--text-secondary))]">

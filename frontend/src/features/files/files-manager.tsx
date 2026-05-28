@@ -148,8 +148,8 @@ export const FilesManager = () => {
           Здесь отображаются только ваши файлы. Поддерживается загрузка больших файлов (&gt; 1 ГБ).
         </p>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <input className="form-input max-w-md rounded-lg px-3 py-2" onChange={onChooseFile} type="file" />
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <input className="form-input w-full max-w-md rounded-lg px-3 py-2" onChange={onChooseFile} type="file" />
           <button className="interactive-chip theme-button px-4 py-2 disabled:opacity-60" disabled={!selectedFile || uploading} onClick={() => void onUpload()} type="button">
             {uploading ? 'Загрузка…' : 'Загрузить файл'}
           </button>
@@ -216,7 +216,7 @@ export const FilesManager = () => {
                     {file.created_at ? new Date(file.created_at).toLocaleString() : 'Дата неизвестна'}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="mobile-stack-actions flex gap-2">
                   <button className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" type="button" onClick={() => void onShare(file)}>
                     Поделиться
                   </button>

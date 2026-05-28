@@ -14,7 +14,7 @@ export const AppLayout = () => {
       <div className="flex flex-1 flex-col">
         <Header onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
         <NavigationProgress />
-        <main className="p-4 pb-20 sm:p-6">
+        <main className="w-full max-w-full overflow-x-hidden p-3 pb-20 sm:p-6">
           <RouteTransition />
         </main>
       </div>

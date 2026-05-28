@@ -259,7 +259,7 @@ export const UsersTable = () => {
       {!loading && users.length === 0 && !error && <p className="text-sm text-[rgb(var(--text-secondary))]">Пользователей пока нет.</p>}
 
       {users.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))]">
+        <div className="responsive-table-wrap rounded-xl border border-[rgb(var(--border))]">
           <table className="min-w-full border-collapse text-sm">
             <thead className="bg-[rgb(var(--bg-main))]">
               <tr className="text-left text-[rgb(var(--text-secondary))]">
@@ -383,7 +383,7 @@ export const UsersTable = () => {
         {!sessionsLoading && sessions.length === 0 && <p className="text-sm text-[rgb(var(--text-secondary))]">Активных сессий нет.</p>}
 
         {sessions.length > 0 && (
-          <div className="overflow-x-auto rounded-xl border border-[rgb(var(--border))]">
+          <div className="responsive-table-wrap rounded-xl border border-[rgb(var(--border))]">
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-[rgb(var(--bg-main))]">
                 <tr className="text-left text-[rgb(var(--text-secondary))]">
