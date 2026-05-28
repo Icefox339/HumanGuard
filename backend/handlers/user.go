@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"context"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -185,95 +186,73 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		TOTPCode string `json:"totp_code,omitempty"`
-	}
+    var req struct {
+        Email    string `json:"email"`
+        Password string `json:"password"`
+        TOTPCode string `json:"totp_code,omitempty"`
+    }
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"}); err != nil {
-			log.Printf("Failed to encode response: %v", err)
-		}
-		return
-	}
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeLoginError(w)
+        return
+    }
 
-	if req.Email == "" || req.Password == "" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "email and password required"}); err != nil {
-			log.Printf("Failed to encode response: %v", err)
-		}
-		return
-	}
+    if req.Email == "" || req.Password == "" {
+        writeLoginError(w)
+        return
+    }
 
-	user, err := h.storage.GetUserByEmail(r.Context(), req.Email)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid credentials"}); err != nil {
-			log.Printf("Failed to encode response: %v", err)
-		}
-		return
-	}
+    user, err := h.storage.GetUserByEmail(r.Context(), req.Email)
+    if err != nil {
+        writeLoginError(w)  
+        return
+    }
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid credentials"}); err != nil {
-			log.Printf("Failed to encode response: %v", err)
-		}
-		return
-	}
+    if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+        writeLoginError(w) 
+        return
+    }
 
-	if user.TOTPSecret != nil && *user.TOTPSecret != "" {
-		if req.TOTPCode == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			if err := json.NewEncoder(w).Encode(map[string]string{"error": "totp_code required"}); err != nil {
-				log.Printf("Failed to encode response: %v", err)
-			}
-			return
-		}
-		if !h.totp.ValidateCode(*user.TOTPSecret, req.TOTPCode) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid totp code"}); err != nil {
-				log.Printf("Failed to encode response: %v", err)
-			}
-			return
-		}
-	}
-	sessionID := uuid.New().String()
-	realIP := getRealIP(r) 
-	h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, realIP, r.UserAgent())
-	token, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "failed to generate token"}); err != nil {
-			log.Printf("Failed to encode response: %v", err)
-		}
-		return
-	}
+    if user.TOTPSecret != nil && *user.TOTPSecret != "" {
+        if req.TOTPCode == "" || !h.totp.ValidateCode(*user.TOTPSecret, req.TOTPCode) {
+            writeLoginError(w)  
+            return
+        }
+    }
 
-	if err := h.storage.UpdateLastLogin(r.Context(), user.ID); err != nil {
-		log.Printf("Failed to update last login for user %s: %v", user.ID, err)
-	}
+    sessionID := uuid.New().String()
+    realIP := getRealIP(r)
+    h.sessionManager.Create(sessionID, user.ID, user.Email, user.Role, realIP, r.UserAgent())
+    token, err := h.jwt.GenerateTokenWithSessionID(user.ID, user.Role, sessionID)
+    if err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+        json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
+        return
+    }
 
-	user.PasswordHash = ""
-	user.TOTPSecret = nil
+    go func() {
+        if err := h.storage.UpdateLastLogin(context.Background(), user.ID); err != nil {
+            log.Printf("Failed to update last login for user %s: %v", user.ID, err)
+        }
+    }()
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"token": token,
-		"user":  user,
-	}); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-	}
+    user.PasswordHash = ""
+    user.TOTPSecret = nil
+
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "token": token,
+        "user":  user,
+    })
+}
+
+func writeLoginError(w http.ResponseWriter) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusUnauthorized)
+    json.NewEncoder(w).Encode(map[string]string{
+        "error": "invalid email or password or verification code",
+    })
 }
 
 func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {

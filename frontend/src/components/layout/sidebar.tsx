@@ -2,11 +2,11 @@ import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/app/store/auth-store';
 
 const mainLinks = [
-  ['Dashboard', '/dashboard'],
-  ['Sites', '/sites'],
-  ['Files', '/files'],
-  ['Profile', '/profile'],
-  ['API Keys', '/api-keys']
+  ['Панель', '/dashboard'],
+  ['Сайты', '/sites'],
+  ['Файлы', '/files'],
+  ['Профиль', '/profile'],
+  ['Ключи API', '/api-keys']
 ];
 
 type SidebarProps = {
@@ -24,7 +24,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         <button
           className="fixed inset-0 z-30 bg-slate-900/35 sm:hidden"
           onClick={onClose}
-          aria-label="Close menu"
+          aria-label="Закрыть меню"
           type="button"
         />
       )}
@@ -38,7 +38,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <circle cx="10" cy="9.4" r="2.2" fill="white" fillOpacity="0.95" />
             </svg>
           </span>
-          HumanGuard
+          ХьюмэнГард
         </h1>
         <nav className="flex flex-col gap-1">
           {mainLinks.map(([label, href]) => (
@@ -61,16 +61,12 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 to="/admin/users"
                 onClick={onClose}
                 className={({ isActive }) => (isActive ? 'nav-link nav-link--active' : 'nav-link')}
-              >
-                Users
-              </NavLink>
+              >Пользователи</NavLink>
               <NavLink
                 to="/admin/tokens"
                 onClick={onClose}
                 className={({ isActive }) => (isActive ? 'nav-link nav-link--active' : 'nav-link')}
-              >
-                Token manager
-              </NavLink>
+              >Менеджер токенов</NavLink>
             </>
           )}
         </nav>

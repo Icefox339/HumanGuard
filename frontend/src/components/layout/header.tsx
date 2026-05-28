@@ -13,10 +13,10 @@ export const Header = ({ onToggleSidebar }: HeaderProps) => {
         onClick={onToggleSidebar}
         type="button"
       >
-        Menu
+        Меню
       </button>
       <button className="interactive-chip theme-button" onClick={clearSession}>
-        Logout
+        Выйти
       </button>
     </header>
   );

@@ -342,7 +342,7 @@ export const UsersTable = () => {
                           </div>
                           {isDataImage(draftAvatarUrl) && (
                             <p className="text-xs text-[rgb(var(--text-secondary))]">
-                              Загружен avatar в формате base64 (скрыт, чтобы не показывать длинную строку).
+                              Загружен аватар в формате base64 (скрыт, чтобы не показывать длинную строку).
                             </p>
                           )}
                         </div>
@@ -387,11 +387,11 @@ export const UsersTable = () => {
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-[rgb(var(--bg-main))]">
                 <tr className="text-left text-[rgb(var(--text-secondary))]">
-                  <th className="px-3 py-2">Session ID</th>
-                  <th className="px-3 py-2">User</th>
-                  <th className="px-3 py-2">Role</th>
+                  <th className="px-3 py-2">ID сессии</th>
+                  <th className="px-3 py-2">Пользователь</th>
+                  <th className="px-3 py-2">Роль</th>
                   <th className="px-3 py-2">IP</th>
-                  <th className="px-3 py-2">Last seen</th>
+                  <th className="px-3 py-2">Последняя активность</th>
                   <th className="px-3 py-2">Действия</th>
                 </tr>
               </thead>
