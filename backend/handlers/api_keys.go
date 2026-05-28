@@ -40,6 +40,7 @@ type APIKeyResponse struct {
 type APIKeyListResponse struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
+	Key        string     `json:"key"`
 	Prefix     string     `json:"prefix"`
 	CreatedAt  time.Time  `json:"created_at"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
@@ -54,6 +55,7 @@ type AdminAPIKeyListResponse struct {
 	UserName   string     `json:"user_name"`
 	UserRole   string     `json:"user_role"`
 	Name       string     `json:"name"`
+	Key        string     `json:"key"`
 	Prefix     string     `json:"prefix"`
 	CreatedAt  time.Time  `json:"created_at"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
@@ -115,6 +117,7 @@ func (h *APIKeyHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		UserID:    userID,
 		Name:      req.Name,
 		KeyHash:   keyHash,
+		KeyValue:  keyRaw,
 		Prefix:    prefix,
 		ExpiresAt: expiresAt,
 		CreatedBy: &userID,
@@ -157,6 +160,7 @@ func (h *APIKeyHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		response[i] = APIKeyListResponse{
 			ID:         key.ID,
 			Name:       key.Name,
+			Key:        key.KeyValue,
 			Prefix:     key.Prefix,
 			CreatedAt:  key.CreatedAt,
 			ExpiresAt:  key.ExpiresAt,
@@ -290,6 +294,7 @@ func (h *APIKeyHandler) ListAllAPIKeys(w http.ResponseWriter, r *http.Request) {
 			UserName:   "",
 			UserRole:   "",
 			Name:       key.Name,
+			Key:        key.KeyValue,
 			Prefix:     key.Prefix,
 			CreatedAt:  key.CreatedAt,
 			ExpiresAt:  key.ExpiresAt,
