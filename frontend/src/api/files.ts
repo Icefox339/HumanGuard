@@ -14,37 +14,61 @@ export type FileShareResponse = {
   token: string;
 };
 
-export const getFiles = () => api.get<ManagedFile[]>('/files').then(({ data }) => data);
+export const getFiles = () =>
+  api.get<ManagedFile[]>('/files').then(({ data }) => data);
 
 export const createFileShare = (fileId: string, expiresInHours?: number) =>
-  api.post<FileShareResponse>('/files/share', {
-    file_id: fileId,
-    ...(expiresInHours && expiresInHours > 0 ? { expires_in_hours: expiresInHours } : {})
-  }).then(({ data }) => data);
+  api
+    .post<FileShareResponse>('/files/share', {
+      file_id: fileId,
+      ...(expiresInHours && expiresInHours > 0
+        ? { expires_in_hours: expiresInHours }
+        : {}),
+    })
+    .then(({ data }) => data);
 
 export const uploadFile = (
   file: File,
   uploadId: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
 ) => {
   const formData = new FormData();
   formData.append('file', file);
 
   return api
-    .post<ManagedFile>(`/files/upload?upload_id=${encodeURIComponent(uploadId)}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: onProgress
-        ? (event) => {
-            if (!event.total) {
-              return;
+    .post<ManagedFile>(
+      `/files/upload?upload_id=${encodeURIComponent(uploadId)}`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: onProgress
+          ? (event) => {
+              if (!event.total) {
+                return;
+              }
+              onProgress(Math.round((event.loaded / event.total) * 100));
             }
-            onProgress(Math.round((event.loaded / event.total) * 100));
-          }
-        : undefined,
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity
-    })
+          : undefined,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      },
+    )
     .then(({ data }) => data);
+};
+
+export const buildFileShareUrl = (token: string) =>
+  `${API_URL.replace(/\/$/, '')}/api/files/share/${encodeURIComponent(token)}`;
+
+const createUploadId = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+export const uploadAvatarFile = async (file: File) => {
+  const uploadId = createUploadId();
+  const uploadedFile = await uploadFile(file, uploadId);
+  const share = await createFileShare(uploadedFile.id);
+
+  return buildFileShareUrl(share.token);
 };
 
 export type UploadProgressMessage = {
@@ -57,11 +81,13 @@ export type UploadProgressMessage = {
 
 export const openUploadProgressSocket = (
   uploadId: string,
-  onMessage: (progress: UploadProgressMessage) => void
+  onMessage: (progress: UploadProgressMessage) => void,
 ) => {
   const baseUrl = API_URL.replace(/\/$/, '');
   const wsBaseUrl = baseUrl.replace(/^http/, 'ws');
-  const ws = new WebSocket(`${wsBaseUrl}/api/files/upload/progress?upload_id=${encodeURIComponent(uploadId)}`);
+  const ws = new WebSocket(
+    `${wsBaseUrl}/api/files/upload/progress?upload_id=${encodeURIComponent(uploadId)}`,
+  );
 
   ws.onmessage = (event) => {
     try {

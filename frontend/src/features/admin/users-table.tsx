@@ -1,24 +1,27 @@
 import { ChangeEvent, Fragment, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { getCurrentUser } from '@/api/auth';
-import { adminChangeUserPassword, getUsers, updateUser, UserDetails } from '@/api/users';
-import { AdminUserSession, deactivateUserSession, getAdminUserSessions } from '@/api/sessions';
-
-
+import { uploadAvatarFile } from '@/api/files';
+import {
+  adminChangeUserPassword,
+  getUsers,
+  updateUser,
+  UserDetails,
+} from '@/api/users';
+import {
+  AdminUserSession,
+  deactivateUserSession,
+  getAdminUserSessions,
+} from '@/api/sessions';
 
 const truncate = (value?: string | null, max = 28) => {
   if (!value) return '—';
   return value.length > max ? `${value.slice(0, max)}...` : value;
 };
 
-const isDataImage = (value?: string | null) => {
+const isImageSource = (value?: string | null) => {
   if (!value) return false;
-  return /^data:image\//i.test(value.trim());
-};
-
-const isExternalUrl = (value?: string | null) => {
-  if (!value) return false;
-  return /^https?:\/\//i.test(value.trim());
+  return /^(data:image\/|https?:\/\/|\/)/i.test(value.trim());
 };
 
 const AvatarPreview = ({ avatarUrl }: { avatarUrl?: string | null }) => {
@@ -26,7 +29,7 @@ const AvatarPreview = ({ avatarUrl }: { avatarUrl?: string | null }) => {
     return <span className="text-[rgb(var(--text-secondary))]">—</span>;
   }
 
-  if (isDataImage(avatarUrl)) {
+  if (isImageSource(avatarUrl)) {
     return (
       <img
         src={avatarUrl}
@@ -38,26 +41,19 @@ const AvatarPreview = ({ avatarUrl }: { avatarUrl?: string | null }) => {
     );
   }
 
-  if (isExternalUrl(avatarUrl)) {
-    return <span className="block max-w-56 truncate" title={avatarUrl}>{truncate(avatarUrl, 40)}</span>;
-  }
-
-  return <span className="block max-w-56 truncate" title={avatarUrl}>{truncate(avatarUrl, 26)}</span>;
+  return (
+    <span className="block max-w-56 truncate" title={avatarUrl}>
+      {truncate(avatarUrl, 26)}
+    </span>
+  );
 };
 const getError = (error: unknown) => {
   const err = error as AxiosError<{ error?: string }>;
   return {
     status: err.response?.status,
-    message: err.response?.data?.error ?? err.message ?? 'Unknown error'
+    message: err.response?.data?.error ?? err.message ?? 'Unknown error',
   };
 };
-
-const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result ?? ''));
-  reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
-  reader.readAsDataURL(file);
-});
 
 export const UsersTable = () => {
   const [users, setUsers] = useState<UserDetails[]>([]);
@@ -66,12 +62,18 @@ export const UsersTable = () => {
   const [error, setError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AdminUserSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [deactivatingSessionId, setDeactivatingSessionId] = useState<string | null>(null);
+  const [deactivatingSessionId, setDeactivatingSessionId] = useState<
+    string | null
+  >(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftRole, setDraftRole] = useState<'user' | 'admin'>('user');
   const [draftAvatarUrl, setDraftAvatarUrl] = useState('');
-  const [draftAvatarFileName, setDraftAvatarFileName] = useState<string | null>(null);
+  const [draftAvatarFile, setDraftAvatarFile] = useState<File | null>(null);
+  const [draftAvatarPreviewUrl, setDraftAvatarPreviewUrl] = useState('');
+  const [draftAvatarFileName, setDraftAvatarFileName] = useState<string | null>(
+    null,
+  );
   const [draftPassword, setDraftPassword] = useState('');
 
   const loadUsers = async () => {
@@ -86,7 +88,9 @@ export const UsersTable = () => {
       const err = getError(e);
 
       if (err.status === 405) {
-        setError('Текущий бэкенд не поддерживает GET /api/users (возвращает 405). Показываю только текущего пользователя.');
+        setError(
+          'Текущий бэкенд не поддерживает GET /api/users (возвращает 405). Показываю только текущего пользователя.',
+        );
         try {
           const me = await getCurrentUser();
           setUsers([
@@ -97,8 +101,8 @@ export const UsersTable = () => {
               role: me.role,
               created_at: undefined,
               updated_at: undefined,
-              last_login: undefined
-            }
+              last_login: undefined,
+            },
           ]);
         } catch {
           setUsers([]);
@@ -132,11 +136,32 @@ export const UsersTable = () => {
     }
   };
 
+  const updateDraftAvatarPreviewUrl = (nextPreviewUrl: string) => {
+    setDraftAvatarPreviewUrl((previousPreviewUrl) => {
+      if (previousPreviewUrl) {
+        URL.revokeObjectURL(previousPreviewUrl);
+      }
+
+      return nextPreviewUrl;
+    });
+  };
+
+  useEffect(
+    () => () => {
+      if (draftAvatarPreviewUrl) {
+        URL.revokeObjectURL(draftAvatarPreviewUrl);
+      }
+    },
+    [draftAvatarPreviewUrl],
+  );
+
   const startEdit = (user: UserDetails) => {
     setEditingUserId(user.id);
     setDraftName(user.name ?? '');
     setDraftRole(user.role === 'admin' ? 'admin' : 'user');
     setDraftAvatarUrl(user.avatar_url ?? '');
+    setDraftAvatarFile(null);
+    updateDraftAvatarPreviewUrl('');
     setDraftAvatarFileName(null);
     setDraftPassword('');
     setError(null);
@@ -147,21 +172,27 @@ export const UsersTable = () => {
     setDraftName('');
     setDraftRole('user');
     setDraftAvatarUrl('');
+    setDraftAvatarFile(null);
+    updateDraftAvatarPreviewUrl('');
     setDraftAvatarFileName(null);
     setDraftPassword('');
   };
 
-  const onAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const onAvatarFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     setError(null);
 
     if (!file) {
+      setDraftAvatarFile(null);
+      updateDraftAvatarPreviewUrl('');
       setDraftAvatarFileName(null);
       return;
     }
 
     if (!file.type.startsWith('image/')) {
       setError('Можно загрузить только изображение.');
+      setDraftAvatarFile(null);
+      updateDraftAvatarPreviewUrl('');
       setDraftAvatarFileName(null);
       event.target.value = '';
       return;
@@ -169,20 +200,17 @@ export const UsersTable = () => {
 
     if (file.size > 15 * 1024 * 1024) {
       setError('Максимальный размер аватарки — 15MB.');
+      setDraftAvatarFile(null);
+      updateDraftAvatarPreviewUrl('');
       setDraftAvatarFileName(null);
       event.target.value = '';
       return;
     }
 
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      setDraftAvatarUrl(dataUrl);
-      setDraftAvatarFileName(file.name);
-    } catch (e) {
-      const err = getError(e);
-      setError(err.message);
-      setDraftAvatarFileName(null);
-    }
+    setDraftAvatarFile(file);
+    setDraftAvatarUrl('');
+    updateDraftAvatarPreviewUrl(URL.createObjectURL(file));
+    setDraftAvatarFileName(file.name);
   };
 
   const saveEdit = async (user: UserDetails) => {
@@ -190,17 +218,25 @@ export const UsersTable = () => {
     setError(null);
 
     try {
+      const avatarUrl = draftAvatarFile
+        ? await uploadAvatarFile(draftAvatarFile)
+        : draftAvatarUrl.trim();
+
       const updated = await updateUser(user.id, {
         name: draftName.trim(),
         role: draftRole,
-        avatar_url: draftAvatarUrl.trim()
+        avatar_url: avatarUrl,
       });
 
       if (draftPassword.trim()) {
-        await adminChangeUserPassword(user.id, { new_password: draftPassword.trim() });
+        await adminChangeUserPassword(user.id, {
+          new_password: draftPassword.trim(),
+        });
       }
 
-      setUsers((prev) => prev.map((item) => (item.id === user.id ? updated : item)));
+      setUsers((prev) =>
+        prev.map((item) => (item.id === user.id ? updated : item)),
+      );
       cancelEdit();
     } catch (e) {
       const err = getError(e);
@@ -228,7 +264,9 @@ export const UsersTable = () => {
   return (
     <section className="theme-card space-y-4 rounded-2xl border border-[rgb(var(--border))] p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-[rgb(var(--text-primary))]">Пользователи системы</h2>
+        <h2 className="text-xl font-semibold text-[rgb(var(--text-primary))]">
+          Пользователи системы
+        </h2>
         <button
           className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-sm font-medium text-[rgb(var(--text-primary))]"
           onClick={() => void loadUsers()}
@@ -237,10 +275,22 @@ export const UsersTable = () => {
         </button>
       </div>
 
-      {loading && <p className="text-sm text-[rgb(var(--text-secondary))]">Загрузка пользователей...</p>}
-      {error && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</p>}
+      {loading && (
+        <p className="text-sm text-[rgb(var(--text-secondary))]">
+          Загрузка пользователей...
+        </p>
+      )}
+      {error && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {error}
+        </p>
+      )}
 
-      {!loading && users.length === 0 && !error && <p className="text-sm text-[rgb(var(--text-secondary))]">Пользователей пока нет.</p>}
+      {!loading && users.length === 0 && !error && (
+        <p className="text-sm text-[rgb(var(--text-secondary))]">
+          Пользователей пока нет.
+        </p>
+      )}
 
       {users.length > 0 && (
         <div className="responsive-table-wrap rounded-xl border border-[rgb(var(--border))]">
@@ -260,77 +310,152 @@ export const UsersTable = () => {
             <tbody>
               {users.map((user) => (
                 <Fragment key={user.id}>
-                <tr className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
-                  <td className="max-w-56 truncate px-3 py-2" title={user.id}>{user.id}</td>
-                  <td className="max-w-56 truncate px-3 py-2" title={user.email}>{editingUserId === user.id ? user.email : truncate(user.email, 30)}</td>
-                  <td className="max-w-56 truncate px-3 py-2" title={user.name || ''}>{editingUserId === user.id ? (user.name || '—') : truncate(user.name, 26)}</td>
-                  <td className="px-3 py-2">
-                    <span className="rounded-full bg-[rgb(var(--bg-main))] px-2 py-0.5 text-xs font-medium text-[rgb(var(--text-secondary))]">{user.role}</span>
-                  </td>
-                  <td className="px-3 py-2">{user.created_at ? new Date(user.created_at).toLocaleString() : '—'}</td>
-                  <td className="px-3 py-2">{user.last_login ? new Date(user.last_login).toLocaleString() : '—'}</td>
-                  <td className="px-3 py-2">
-                    <AvatarPreview avatarUrl={editingUserId === user.id ? draftAvatarUrl : user.avatar_url} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))]"
-                        onClick={() => startEdit(user)}
-                      >
-                        Редактировать
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                {editingUserId === user.id && (
-                  <tr className="border-t border-[rgb(var(--border))] bg-[rgb(var(--bg-main))]">
-                    <td colSpan={8} className="px-3 py-3">
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <input className="form-input rounded-lg px-3 py-2" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Имя" />
-                        <div className="space-y-2">
-                          <label className="block text-xs text-[rgb(var(--text-secondary))]" htmlFor={`admin-avatar-file-${user.id}`}>
-                            Загрузить аватар с компьютера
-                          </label>
-                          <input
-                            id={`admin-avatar-file-${user.id}`}
-                            type="file"
-                            accept="image/*"
-                            className="form-input w-full rounded-lg px-3 py-2"
-                            onChange={(e) => void onAvatarFileChange(e)}
-                          />
-                          {draftAvatarFileName && (
-                            <p className="text-xs text-[rgb(var(--text-secondary))]">Выбран файл: {draftAvatarFileName}</p>
-                          )}
-                          <input
-                            className="form-input w-full rounded-lg px-3 py-2"
-                            value={isDataImage(draftAvatarUrl) ? '' : draftAvatarUrl}
-                            onChange={(e) => {
-                              setDraftAvatarUrl(e.target.value);
-                              setDraftAvatarFileName(null);
-                            }}
-                            placeholder="Avatar URL"
-                          />
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-[rgb(var(--text-secondary))]">Превью:</span>
-                            <AvatarPreview avatarUrl={draftAvatarUrl || user.avatar_url} />
-                          </div>
-                        </div>
-                        <select className="form-input rounded-lg px-3 py-2" value={draftRole} onChange={(e) => setDraftRole(e.target.value as 'user' | 'admin')}>
-                          <option value="user">user</option>
-                          <option value="admin">admin</option>
-                        </select>
-                        <input className="form-input rounded-lg px-3 py-2" type="password" value={draftPassword} onChange={(e) => setDraftPassword(e.target.value)} placeholder="Новый пароль" />
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        <button className="interactive-chip theme-button px-3 py-1.5 text-xs" disabled={updatingUserId === user.id} onClick={() => void saveEdit(user)}>
-                          {updatingUserId === user.id ? 'Сохраняем...' : 'Сохранить'}
+                  <tr className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
+                    <td className="max-w-56 truncate px-3 py-2" title={user.id}>
+                      {user.id}
+                    </td>
+                    <td
+                      className="max-w-56 truncate px-3 py-2"
+                      title={user.email}
+                    >
+                      {editingUserId === user.id
+                        ? user.email
+                        : truncate(user.email, 30)}
+                    </td>
+                    <td
+                      className="max-w-56 truncate px-3 py-2"
+                      title={user.name || ''}
+                    >
+                      {editingUserId === user.id
+                        ? user.name || '—'
+                        : truncate(user.name, 26)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="rounded-full bg-[rgb(var(--bg-main))] px-2 py-0.5 text-xs font-medium text-[rgb(var(--text-secondary))]">
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {user.created_at
+                        ? new Date(user.created_at).toLocaleString()
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      {user.last_login
+                        ? new Date(user.last_login).toLocaleString()
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <AvatarPreview
+                        avatarUrl={
+                          editingUserId === user.id
+                            ? draftAvatarPreviewUrl || draftAvatarUrl
+                            : user.avatar_url
+                        }
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))]"
+                          onClick={() => startEdit(user)}
+                        >
+                          Редактировать
                         </button>
-                        <button className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-xs" onClick={cancelEdit}>Отмена</button>
                       </div>
                     </td>
                   </tr>
-                )}
+                  {editingUserId === user.id && (
+                    <tr className="border-t border-[rgb(var(--border))] bg-[rgb(var(--bg-main))]">
+                      <td colSpan={8} className="px-3 py-3">
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <input
+                            className="form-input rounded-lg px-3 py-2"
+                            value={draftName}
+                            onChange={(e) => setDraftName(e.target.value)}
+                            placeholder="Имя"
+                          />
+                          <div className="space-y-2">
+                            <label
+                              className="block text-xs text-[rgb(var(--text-secondary))]"
+                              htmlFor={`admin-avatar-file-${user.id}`}
+                            >
+                              Загрузить аватар с компьютера
+                            </label>
+                            <input
+                              id={`admin-avatar-file-${user.id}`}
+                              type="file"
+                              accept="image/*"
+                              className="form-input w-full rounded-lg px-3 py-2"
+                              onChange={onAvatarFileChange}
+                            />
+                            {draftAvatarFileName && (
+                              <p className="text-xs text-[rgb(var(--text-secondary))]">
+                                Выбран файл: {draftAvatarFileName}
+                              </p>
+                            )}
+                            <input
+                              className="form-input w-full rounded-lg px-3 py-2"
+                              value={draftAvatarUrl}
+                              onChange={(e) => {
+                                setDraftAvatarUrl(e.target.value);
+                                setDraftAvatarFile(null);
+                                updateDraftAvatarPreviewUrl('');
+                                setDraftAvatarFileName(null);
+                              }}
+                              placeholder="Avatar URL"
+                            />
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-[rgb(var(--text-secondary))]">
+                                Превью:
+                              </span>
+                              <AvatarPreview
+                                avatarUrl={
+                                  draftAvatarPreviewUrl ||
+                                  draftAvatarUrl ||
+                                  user.avatar_url
+                                }
+                              />
+                            </div>
+                          </div>
+                          <select
+                            className="form-input rounded-lg px-3 py-2"
+                            value={draftRole}
+                            onChange={(e) =>
+                              setDraftRole(e.target.value as 'user' | 'admin')
+                            }
+                          >
+                            <option value="user">user</option>
+                            <option value="admin">admin</option>
+                          </select>
+                          <input
+                            className="form-input rounded-lg px-3 py-2"
+                            type="password"
+                            value={draftPassword}
+                            onChange={(e) => setDraftPassword(e.target.value)}
+                            placeholder="Новый пароль"
+                          />
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            className="interactive-chip theme-button px-3 py-1.5 text-xs"
+                            disabled={updatingUserId === user.id}
+                            onClick={() => void saveEdit(user)}
+                          >
+                            {updatingUserId === user.id
+                              ? 'Сохраняем...'
+                              : 'Сохранить'}
+                          </button>
+                          <button
+                            className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-xs"
+                            onClick={cancelEdit}
+                          >
+                            Отмена
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </Fragment>
               ))}
             </tbody>
@@ -340,7 +465,9 @@ export const UsersTable = () => {
 
       <div className="space-y-3 rounded-xl border border-[rgb(var(--border))] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))]">Активные пользовательские сессии</h3>
+          <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))]">
+            Активные пользовательские сессии
+          </h3>
           <button
             className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-sm font-medium text-[rgb(var(--text-primary))]"
             onClick={() => void loadSessions()}
@@ -349,8 +476,16 @@ export const UsersTable = () => {
           </button>
         </div>
 
-        {sessionsLoading && <p className="text-sm text-[rgb(var(--text-secondary))]">Загрузка сессий...</p>}
-        {!sessionsLoading && sessions.length === 0 && <p className="text-sm text-[rgb(var(--text-secondary))]">Активных сессий нет.</p>}
+        {sessionsLoading && (
+          <p className="text-sm text-[rgb(var(--text-secondary))]">
+            Загрузка сессий...
+          </p>
+        )}
+        {!sessionsLoading && sessions.length === 0 && (
+          <p className="text-sm text-[rgb(var(--text-secondary))]">
+            Активных сессий нет.
+          </p>
+        )}
 
         {sessions.length > 0 && (
           <div className="responsive-table-wrap rounded-xl border border-[rgb(var(--border))]">
@@ -367,19 +502,33 @@ export const UsersTable = () => {
               </thead>
               <tbody>
                 {sessions.map((session) => (
-                  <tr key={session.id} className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]">
-                    <td className="max-w-48 truncate px-3 py-2" title={session.id}>{session.id}</td>
+                  <tr
+                    key={session.id}
+                    className="border-t border-[rgb(var(--border))] align-top hover:bg-[rgb(var(--bg-main))]"
+                  >
+                    <td
+                      className="max-w-48 truncate px-3 py-2"
+                      title={session.id}
+                    >
+                      {session.id}
+                    </td>
                     <td className="px-3 py-2">{session.email}</td>
                     <td className="px-3 py-2">{session.role}</td>
                     <td className="px-3 py-2">{session.ip || '—'}</td>
-                    <td className="px-3 py-2">{session.last_seen ? new Date(session.last_seen).toLocaleString() : '—'}</td>
+                    <td className="px-3 py-2">
+                      {session.last_seen
+                        ? new Date(session.last_seen).toLocaleString()
+                        : '—'}
+                    </td>
                     <td className="px-3 py-2">
                       <button
                         className="interactive-chip rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 disabled:opacity-60"
                         disabled={deactivatingSessionId === session.id}
                         onClick={() => void deactivateSession(session)}
                       >
-                        {deactivatingSessionId === session.id ? 'Деактивируем...' : 'Деактивировать'}
+                        {deactivatingSessionId === session.id
+                          ? 'Деактивируем...'
+                          : 'Деактивировать'}
                       </button>
                     </td>
                   </tr>

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -213,7 +214,11 @@ func (h *FileHandler) Download(w http.ResponseWriter, r *http.Request) {
 	defer reader.Close()
 
 	w.Header().Set("Content-Type", fileRecord.MimeType)
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileRecord.OriginalName+"\"")
+	disposition := "attachment"
+	if strings.HasPrefix(fileRecord.MimeType, "image/") {
+		disposition = "inline"
+	}
+	w.Header().Set("Content-Disposition", disposition+"; filename=\""+fileRecord.OriginalName+"\"")
 	if _, err := io.Copy(w, reader); err != nil {
 		http.Error(w, "failed to copy file", http.StatusInternalServerError)
 		return
@@ -335,7 +340,11 @@ func (h *FileHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 	defer reader.Close()
 
 	w.Header().Set("Content-Type", fileRecord.MimeType)
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileRecord.OriginalName+"\"")
+	disposition := "attachment"
+	if strings.HasPrefix(fileRecord.MimeType, "image/") {
+		disposition = "inline"
+	}
+	w.Header().Set("Content-Disposition", disposition+"; filename=\""+fileRecord.OriginalName+"\"")
 	if _, err := io.Copy(w, reader); err != nil {
 		http.Error(w, "failed to copy file", http.StatusInternalServerError)
 		return
