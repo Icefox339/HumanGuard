@@ -38,3 +38,7 @@ export const listAllApiKeys = async () => {
   const response = await api.get<AdminApiKey[]>('/admin/keys');
   return response.data;
 };
+
+export const deleteApiKeyPermanently = async (id: string) => {
+  await api.delete(`/keys/${id}/permanent`);
+};

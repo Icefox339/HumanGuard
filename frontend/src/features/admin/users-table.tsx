@@ -132,22 +132,6 @@ export const UsersTable = () => {
     }
   };
 
-  const promoteToAdmin = async (user: UserDetails) => {
-    setUpdatingUserId(user.id);
-    setError(null);
-
-    try {
-      await updateUser(user.id, { role: 'admin' });
-      setUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, role: 'admin' } : item)));
-    } catch (e) {
-      const err = getError(e);
-      setError(`Не удалось назначить пользователя администратором: ${err.message}`);
-    } finally {
-      setUpdatingUserId(null);
-    }
-  };
-
-
   const startEdit = (user: UserDetails) => {
     setEditingUserId(user.id);
     setDraftName(user.name ?? '');
@@ -290,15 +274,6 @@ export const UsersTable = () => {
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
-                      {user.role !== 'admin' && (
-                        <button
-                          className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))] disabled:opacity-60"
-                          disabled={updatingUserId === user.id}
-                          onClick={() => void promoteToAdmin(user)}
-                        >
-                          {updatingUserId === user.id ? 'Назначаем...' : 'Сделать админом'}
-                        </button>
-                      )}
                       <button
                         className="interactive-chip rounded-lg border border-[rgb(var(--border))] px-2 py-1 text-xs font-medium text-[rgb(var(--text-primary))]"
                         onClick={() => startEdit(user)}
@@ -334,23 +309,18 @@ export const UsersTable = () => {
                               setDraftAvatarUrl(e.target.value);
                               setDraftAvatarFileName(null);
                             }}
-                            placeholder="Avatar URL (опционально)"
+                            placeholder="Avatar URL"
                           />
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-[rgb(var(--text-secondary))]">Превью:</span>
                             <AvatarPreview avatarUrl={draftAvatarUrl || user.avatar_url} />
                           </div>
-                          {isDataImage(draftAvatarUrl) && (
-                            <p className="text-xs text-[rgb(var(--text-secondary))]">
-                              Загружен аватар в формате base64 (скрыт, чтобы не показывать длинную строку).
-                            </p>
-                          )}
                         </div>
                         <select className="form-input rounded-lg px-3 py-2" value={draftRole} onChange={(e) => setDraftRole(e.target.value as 'user' | 'admin')}>
                           <option value="user">user</option>
                           <option value="admin">admin</option>
                         </select>
-                        <input className="form-input rounded-lg px-3 py-2" type="password" value={draftPassword} onChange={(e) => setDraftPassword(e.target.value)} placeholder="Новый пароль (необязательно)" />
+                        <input className="form-input rounded-lg px-3 py-2" type="password" value={draftPassword} onChange={(e) => setDraftPassword(e.target.value)} placeholder="Новый пароль" />
                       </div>
                       <div className="mt-3 flex gap-2">
                         <button className="interactive-chip theme-button px-3 py-1.5 text-xs" disabled={updatingUserId === user.id} onClick={() => void saveEdit(user)}>
