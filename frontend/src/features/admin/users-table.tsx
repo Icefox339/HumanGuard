@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { ChangeEvent, Fragment, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { getCurrentUser } from '@/api/auth';
 import { adminChangeUserPassword, getUsers, updateUser, UserDetails } from '@/api/users';
@@ -52,6 +52,13 @@ const getError = (error: unknown) => {
   };
 };
 
+const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result ?? ''));
+  reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+  reader.readAsDataURL(file);
+});
+
 export const UsersTable = () => {
   const [users, setUsers] = useState<UserDetails[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +71,7 @@ export const UsersTable = () => {
   const [draftName, setDraftName] = useState('');
   const [draftRole, setDraftRole] = useState<'user' | 'admin'>('user');
   const [draftAvatarUrl, setDraftAvatarUrl] = useState('');
+  const [draftAvatarFileName, setDraftAvatarFileName] = useState<string | null>(null);
   const [draftPassword, setDraftPassword] = useState('');
 
   const loadUsers = async () => {
@@ -145,6 +153,7 @@ export const UsersTable = () => {
     setDraftName(user.name ?? '');
     setDraftRole(user.role === 'admin' ? 'admin' : 'user');
     setDraftAvatarUrl(user.avatar_url ?? '');
+    setDraftAvatarFileName(null);
     setDraftPassword('');
     setError(null);
   };
@@ -154,7 +163,42 @@ export const UsersTable = () => {
     setDraftName('');
     setDraftRole('user');
     setDraftAvatarUrl('');
+    setDraftAvatarFileName(null);
     setDraftPassword('');
+  };
+
+  const onAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setError(null);
+
+    if (!file) {
+      setDraftAvatarFileName(null);
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setError('Можно загрузить только изображение.');
+      setDraftAvatarFileName(null);
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Максимальный размер аватарки — 15MB.');
+      setDraftAvatarFileName(null);
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setDraftAvatarUrl(dataUrl);
+      setDraftAvatarFileName(file.name);
+    } catch (e) {
+      const err = getError(e);
+      setError(err.message);
+      setDraftAvatarFileName(null);
+    }
   };
 
   const saveEdit = async (user: UserDetails) => {
@@ -270,11 +314,27 @@ export const UsersTable = () => {
                       <div className="grid gap-2 md:grid-cols-2">
                         <input className="form-input rounded-lg px-3 py-2" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Имя" />
                         <div className="space-y-2">
+                          <label className="block text-xs text-[rgb(var(--text-secondary))]" htmlFor={`admin-avatar-file-${user.id}`}>
+                            Загрузить аватар с компьютера
+                          </label>
+                          <input
+                            id={`admin-avatar-file-${user.id}`}
+                            type="file"
+                            accept="image/*"
+                            className="form-input w-full rounded-lg px-3 py-2"
+                            onChange={(e) => void onAvatarFileChange(e)}
+                          />
+                          {draftAvatarFileName && (
+                            <p className="text-xs text-[rgb(var(--text-secondary))]">Выбран файл: {draftAvatarFileName}</p>
+                          )}
                           <input
                             className="form-input w-full rounded-lg px-3 py-2"
                             value={isDataImage(draftAvatarUrl) ? '' : draftAvatarUrl}
-                            onChange={(e) => setDraftAvatarUrl(e.target.value)}
-                            placeholder="Avatar URL"
+                            onChange={(e) => {
+                              setDraftAvatarUrl(e.target.value);
+                              setDraftAvatarFileName(null);
+                            }}
+                            placeholder="Avatar URL (опционально)"
                           />
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-[rgb(var(--text-secondary))]">Превью:</span>
