@@ -64,7 +64,6 @@ CREATE TABLE api_keys (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     key_hash VARCHAR(64) NOT NULL UNIQUE,
-    key_value TEXT NOT NULL,
     prefix VARCHAR(20) NOT NULL,
     last_used_at TIMESTAMP,
     expires_at TIMESTAMP,
