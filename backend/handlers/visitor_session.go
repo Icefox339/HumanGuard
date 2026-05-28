@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"humanguard/metrics"
 	"humanguard/storage"
 )
 
@@ -121,7 +120,6 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 	ip := getRealIP(r)
 	blacklisted, err := h.storage.IsBlacklisted(r.Context(), siteID, ip)
 	if err == nil && blacklisted {
-		metrics.BlockedRequests.Inc()
 		writeJSON(w, http.StatusForbidden, map[string]interface{}{
 			"error":  "your IP is blocked",
 			"action": "block",
@@ -137,8 +135,7 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	ip := getRealIP(r)
-	log.Printf("IP: %s | SiteID: %s | SessionID: %s", ip, siteID, sessionID)
+	log.Printf("IP: %s | SiteID: %s | SessionID: %s", getRealIP(r), siteID, sessionID)
 
 	var session *storage.ActiveSession
 
@@ -187,10 +184,8 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 
 	action := "allow"
 	if session.RiskScore >= 80 {
-		metrics.BlockedRequests.Inc()
 		action = "block"
 	} else if session.RiskScore >= 50 {
-		metrics.CaptchaRequests.Inc()
 		action = "captcha"
 	}
 
@@ -199,12 +194,4 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 		"session_id": sessionID,
 		"risk_score": session.RiskScore,
 	})
-}
-
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-	}
 }
