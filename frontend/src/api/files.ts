@@ -17,6 +17,9 @@ export type FileShareResponse = {
 export const getFiles = () =>
   api.get<ManagedFile[]>('/files').then(({ data }) => data);
 
+export const deleteFile = (fileId: string) =>
+  api.delete(`/files/${encodeURIComponent(fileId)}`);
+
 export const createFileShare = (fileId: string, expiresInHours?: number) =>
   api
     .post<FileShareResponse>('/files/share', {
