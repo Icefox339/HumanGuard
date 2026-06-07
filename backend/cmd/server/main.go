@@ -381,24 +381,21 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
-	defaultOrigins := []string{
-		"http://localhost:5173",
-		"http://localhost:3000",
-		"http://localhost:8080",
-		"http://localhost",
-	}
-
-	if envOrigin := getEnv("CORS_ORIGIN", ""); envOrigin != "" {
-		defaultOrigins = append(defaultOrigins, strings.Split(envOrigin, ",")...)
-	}
-
 	allowedOrigins := make(map[string]bool)
-	for _, origin := range defaultOrigins {
-		allowedOrigins[strings.TrimSpace(origin)] = true
+	
+	if envOrigin := getEnv("CORS_ORIGIN", ""); envOrigin != "" {
+		for _, origin := range strings.Split(envOrigin, ",") {
+			allowedOrigins[strings.TrimSpace(origin)] = true
+		}
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
+		
+		if r.Header.Get("Upgrade") == "websocket" {
+			next.ServeHTTP(w, r)
+			return
+		}
 
 		isAllowed := false
 		if origin != "" {
@@ -410,12 +407,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 		if isAllowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-		} else if origin == "" {
-		} else {
-			log.Printf("[CORS] Rejected origin: %s", origin)
 		}
 
-		w.Header().Set("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
+		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-CSRF-Token, X-Site-ID, X-Session-ID")
 		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining, X-Session-ID")

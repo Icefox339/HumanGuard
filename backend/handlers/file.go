@@ -403,23 +403,25 @@ func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		h.mu.RLock()
-		p, ok := h.progress[uploadID]
-		h.mu.RUnlock()
+	h.mu.RLock()
+	p, ok := h.progress[uploadID]
+	h.mu.RUnlock()
 
-		if !ok {
-			conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100})
+	if !ok {
+		if err := conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100}); err != nil {
 			return
 		}
-
-		if err := conn.WriteJSON(p); err != nil {
-			return
-		}
-
-		if p.Completed {
-			return
-		}
+		return
 	}
+
+	if err := conn.WriteJSON(p); err != nil {
+		return
+	}
+
+	if p.Completed {
+		return
+	}
+}
 }
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
