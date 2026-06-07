@@ -91,6 +91,10 @@ func (rl *RateLimiter) cleanup() {
 
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Upgrade") == "websocket" {
+                next.ServeHTTP(w, r)
+                return
+        }
 		if r.URL.Path == "/health" || strings.HasPrefix(r.URL.Path, "/metrics") {
 			next.ServeHTTP(w, r)
 			return

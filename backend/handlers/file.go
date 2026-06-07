@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
+	"log"
 	"humanguard/auth"
 	"humanguard/storage"
 
@@ -87,9 +87,12 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 
 	h.mu.Lock()
 	h.progress[uploadID] = &UploadProgress{
-		UploadID:   uploadID,
-		UserID:     userID,
-		TotalBytes: contentLength,
+		UploadID:    uploadID,
+		UserID:      userID,
+		TotalBytes:  contentLength,
+		BytesDone:   0,
+		Percentage:  0,
+		Completed:   false,
 	}
 	h.mu.Unlock()
 
@@ -352,36 +355,48 @@ func (h *FileHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
-	userID := auth.GetUserID(r.Context())
-	if userID == "" {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
+	log.Printf("[WS] 1. Request received: %s %s", r.Method, r.URL.Path)
+	log.Printf("[WS] 2. Upgrade header: %s", r.Header.Get("Upgrade"))
+	log.Printf("[WS] 3. Connection header: %s", r.Header.Get("Connection"))
 
 	uploadID := r.URL.Query().Get("upload_id")
+	log.Printf("[WS] 4. Upload ID: %s", uploadID)
+
 	if uploadID == "" {
+		log.Printf("[WS] 5. ERROR: no upload_id")
 		http.Error(w, "upload_id required", http.StatusBadRequest)
 		return
 	}
 
+	for i := 0; i < 50; i++ {
+		h.mu.RLock()
+		_, exists := h.progress[uploadID]
+		h.mu.RUnlock()
+		
+		if exists {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	h.mu.RLock()
-	progress, exists := h.progress[uploadID]
+	_, exists := h.progress[uploadID]
 	h.mu.RUnlock()
+	log.Printf("[WS] 6. Progress exists: %v", exists)
 
 	if !exists {
+		log.Printf("[WS] 7. ERROR: upload not found")
 		http.Error(w, "upload not found", http.StatusNotFound)
 		return
 	}
 
-	if progress.UserID != userID {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-
+	log.Printf("[WS] 8. Upgrading to WebSocket...")
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		log.Printf("[WS] 9. Upgrade FAILED: %v", err)
 		return
 	}
+	log.Printf("[WS] 10. Upgrade SUCCESS! WebSocket connected")
 	defer conn.Close()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -393,9 +408,7 @@ func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
 		h.mu.RUnlock()
 
 		if !ok {
-			if err := conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100}); err != nil {
-				return
-			}
+			conn.WriteJSON(UploadProgress{UploadID: uploadID, Completed: true, Percentage: 100})
 			return
 		}
 
@@ -408,7 +421,6 @@ func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

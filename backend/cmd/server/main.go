@@ -167,6 +167,8 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	adminOnly := auth.RequireAdmin()
 
 	// Публичные эндпоинты (без авторизации)
+	mux.Handle("GET /api/files/upload/progress", routeContext("GET /api/files/upload/progress", http.HandlerFunc(fileHandler.UploadProgressWS)))
+
 	mux.Handle("POST /api/users", routeContext("POST /api/users", http.HandlerFunc(userHandler.CreateUser)))
 	mux.Handle("POST /api/login", routeContext("POST /api/login", http.HandlerFunc(userHandler.Login)))
 	mux.Handle("GET /api/auth/keycloak/login", routeContext("GET /api/auth/keycloak/login", http.HandlerFunc(userHandler.KeycloakLogin)))
@@ -227,7 +229,6 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.Handle("DELETE /api/files/{id}", routeContext("DELETE /api/files/{id}", authMiddleware.Middleware(http.HandlerFunc(fileHandler.Delete))))
 	mux.Handle("GET /api/files", routeContext("GET /api/files", authMiddleware.Middleware(http.HandlerFunc(fileHandler.List))))
 	mux.Handle("POST /api/files/share", routeContext("POST /api/files/share", authMiddleware.Middleware(http.HandlerFunc(fileHandler.CreateShare))))
-	mux.Handle("/api/files/upload/progress", routeContext("/api/files/upload/progress", authMiddleware.Middleware(http.HandlerFunc(fileHandler.UploadProgressWS))))
 
 	// API keys
 	mux.Handle("POST /api/keys", routeContext("POST /api/keys", authMiddleware.Middleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey))))
@@ -379,24 +380,49 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// corsMiddleware - CORS настройки
 func corsMiddleware(next http.Handler) http.Handler {
-	allowedOrigin := getEnv("CORS_ORIGIN", "http://localhost:5173")
+	defaultOrigins := []string{
+		"http://localhost:5173",
+		"http://localhost:3000",
+		"http://localhost:8080",
+		"http://localhost",
+	}
+
+	if envOrigin := getEnv("CORS_ORIGIN", ""); envOrigin != "" {
+		defaultOrigins = append(defaultOrigins, strings.Split(envOrigin, ",")...)
+	}
+
+	allowedOrigins := make(map[string]bool)
+	for _, origin := range defaultOrigins {
+		allowedOrigins[strings.TrimSpace(origin)] = true
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" && origin == allowedOrigin {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		isAllowed := false
+		if origin != "" {
+			if allowedOrigins[origin] {
+				isAllowed = true
+			}
 		}
 
-		w.Header().Set("Vary", "Origin")
+		if isAllowed {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		} else if origin == "" {
+		} else {
+			log.Printf("[CORS] Rejected origin: %s", origin)
+		}
+
+		w.Header().Set("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-CSRF-Token")
-		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-CSRF-Token, X-Site-ID, X-Session-ID")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining, X-Session-ID")
+		w.Header().Set("Access-Control-Max-Age", "86400")
 
 		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 

@@ -11,6 +11,10 @@ import (
 
 func MetricsMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Header.Get("Upgrade") == "websocket" {
+                next.ServeHTTP(w, r)
+                return
+        }
         start := time.Now()
 
         rw := &statusRecorder{ResponseWriter: w, statusCode: http.StatusOK}
