@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2500" height="1600" viewBox="0 0 2500 1600">
+<defs>
+  <marker id="arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L14,7 L0,14 Z" fill="#333"/>
+  </marker>
+  <style>
+    .title { font: 700 34px Arial, sans-serif; fill: #111; }
+    .node-title { font: 700 21px Arial, sans-serif; fill: #111; }
+    .node-sub { font: 18px Arial, sans-serif; fill: #111; }
+    .backend-title { font: 700 23px Arial, sans-serif; fill: #335f25; }
+    .store-title { font: 19px Arial, sans-serif; fill: #111; }
+    .store-sub { font: 17px Arial, sans-serif; fill: #111; }
+    .flow-id { font: 700 12px Arial, sans-serif; fill: #333; }
+    .legend-title { font: 700 19px Arial, sans-serif; fill: #111; }
+    .legend-text { font: 16px Arial, sans-serif; fill: #111; }
+    .note { font: 18px Arial, sans-serif; fill: #111; }
+  </style>
+</defs>
+<rect width="100%" height="100%" fill="white"/>
+<text x="1250.0" y="52" text-anchor="middle" class="title">Функциональная схема HumanGuard: логическая DFD-диаграмма</text>
+
+<rect x="80" y="165" width="270" height="90" rx="18" fill="#edf5ff" stroke="#1f5ea8" stroke-width="2.5"/>
+<text x="215.0" y="199" text-anchor="middle" class="node-title">Пользователь /</text>
+<text x="215.0" y="229" text-anchor="middle" class="node-sub">администратор</text>
+<rect x="80" y="595" width="270" height="90" rx="18" fill="#edf5ff" stroke="#1f5ea8" stroke-width="2.5"/>
+<text x="215.0" y="629" text-anchor="middle" class="node-title">Посетитель</text>
+<text x="215.0" y="659" text-anchor="middle" class="node-sub">сайта</text>
+<rect x="470" y="165" width="250" height="90" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="595.0" y="199" text-anchor="middle" class="node-title">React SPA</text>
+<text x="595.0" y="229" text-anchor="middle" class="node-sub">UI</text>
+<rect x="470" y="365" width="250" height="95" rx="18" fill="#f4f4f4" stroke="#777777" stroke-width="2.5"/>
+<text x="595.0" y="399" text-anchor="middle" class="node-title">Nginx / TLS</text>
+<text x="595.0" y="429" text-anchor="middle" class="node-sub">/API, /KC, SPA</text>
+<rect x="470" y="595" width="250" height="90" rx="18" fill="#edf5ff" stroke="#1f5ea8" stroke-width="2.5"/>
+<text x="595.0" y="629" text-anchor="middle" class="node-title">Защищаемый сайт</text>
+<text x="595.0" y="659" text-anchor="middle" class="node-sub">+ JS-сниппет</text>
+<rect x="840" y="135" width="900" height="930" rx="18" fill="#ffffff" stroke="#8cc37e" stroke-width="2.5"/>
+<text x="1290.0" y="171" text-anchor="middle" class="backend-title">Backend Go: функции обработки данных</text>
+<line x1="1288" y1="270" x2="1288" y2="985" stroke="#333" stroke-width="1.7" stroke-dasharray="8 7"/>
+<rect x="910" y="255" width="320" height="95" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="1070.0" y="289" text-anchor="middle" class="node-title">P1 Auth</text>
+<text x="1070.0" y="319" text-anchor="middle" class="node-sub">JWT / TOTP / OAuth / API-key</text>
+<rect x="1360" y="255" width="320" height="95" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="1520.0" y="289" text-anchor="middle" class="node-title">P2 Управление</text>
+<text x="1520.0" y="319" text-anchor="middle" class="node-sub">сайты / настройки / blacklist</text>
+<rect x="910" y="500" width="320" height="95" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="1070.0" y="534" text-anchor="middle" class="node-title">P3 Проверка посетителя</text>
+<text x="1070.0" y="564" text-anchor="middle" class="node-sub">/api/check</text>
+<rect x="1360" y="500" width="320" height="95" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="1520.0" y="534" text-anchor="middle" class="node-title">P4 Сбор поведения</text>
+<text x="1520.0" y="564" text-anchor="middle" class="node-sub">/api/behavior/{id}</text>
+<rect x="910" y="745" width="320" height="95" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="1070.0" y="779" text-anchor="middle" class="node-title">P5 Детектор</text>
+<text x="1070.0" y="809" text-anchor="middle" class="node-sub">Prefilter + DeepFilter</text>
+<rect x="1360" y="745" width="320" height="95" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="1520.0" y="779" text-anchor="middle" class="node-title">P6 Реакция</text>
+<text x="1520.0" y="809" text-anchor="middle" class="node-sub">allow / captcha / block</text>
+<rect x="910" y="940" width="320" height="95" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="1070.0" y="974" text-anchor="middle" class="node-title">P7 Файловый сервис</text>
+<text x="1070.0" y="1004" text-anchor="middle" class="node-sub">upload / download / share</text>
+<rect x="1360" y="940" width="320" height="95" rx="18" fill="#f2faed" stroke="#4d8b36" stroke-width="2.5"/>
+<text x="1520.0" y="974" text-anchor="middle" class="node-title">P8 Метрики и логи</text>
+<text x="1520.0" y="1004" text-anchor="middle" class="node-sub">/metrics</text>
+<path d="M1950,202 C1950,169.0 2390,169.0 2390,202 L2390,288 C2390,321.0 1950,321.0 1950,288 Z" fill="#fff3dc" stroke="#c77a00" stroke-width="2.5"/>
+<ellipse cx="2170.0" cy="202" rx="220.0" ry="22" fill="#fff3dc" stroke="#c77a00" stroke-width="2.5"/>
+<path d="M1950,288 C1950,321.0 2390,321.0 2390,288" fill="none" stroke="#c77a00" stroke-width="2.5"/>
+<text x="2170.0" y="230" text-anchor="middle" class="store-title">D1 PostgreSQL</text>
+<text x="2170.0" y="258" text-anchor="middle" class="store-sub">users, sites, files, shares,</text>
+<text x="2170.0" y="280" text-anchor="middle" class="store-sub">api_keys, blacklist, user_oauth</text>
+<path d="M1950,452 C1950,419.0 2390,419.0 2390,452 L2390,533 C2390,566.0 1950,566.0 1950,533 Z" fill="#fff3dc" stroke="#c77a00" stroke-width="2.5"/>
+<ellipse cx="2170.0" cy="452" rx="220.0" ry="22" fill="#fff3dc" stroke="#c77a00" stroke-width="2.5"/>
+<path d="M1950,533 C1950,566.0 2390,566.0 2390,533" fill="none" stroke="#c77a00" stroke-width="2.5"/>
+<text x="2170.0" y="480" text-anchor="middle" class="store-title">D2 MemorySessionStore</text>
+<text x="2170.0" y="508" text-anchor="middle" class="store-sub">visitor sessions + metrics</text>
+<path d="M1950,712 C1950,679.0 2390,679.0 2390,712 L2390,778 C2390,811.0 1950,811.0 1950,778 Z" fill="#fff3dc" stroke="#c77a00" stroke-width="2.5"/>
+<ellipse cx="2170.0" cy="712" rx="220.0" ry="22" fill="#fff3dc" stroke="#c77a00" stroke-width="2.5"/>
+<path d="M1950,778 C1950,811.0 2390,811.0 2390,778" fill="none" stroke="#c77a00" stroke-width="2.5"/>
+<text x="2170.0" y="740" text-anchor="middle" class="store-title">D3 MinIO / local FS</text>
+<text x="2170.0" y="768" text-anchor="middle" class="store-sub">содержимое файлов</text>
+<rect x="1950" y="895" width="440" height="90" rx="18" fill="#edf5ff" stroke="#1f5ea8" stroke-width="2.5"/>
+<text x="2170.0" y="929" text-anchor="middle" class="node-title">OAuth/OIDC</text>
+<text x="2170.0" y="959" text-anchor="middle" class="node-sub">Keycloak / Google / GitHub</text>
+<rect x="1950" y="1080" width="440" height="90" rx="18" fill="#edf5ff" stroke="#1f5ea8" stroke-width="2.5"/>
+<text x="2170.0" y="1132.0" text-anchor="middle" class="node-title">hCaptcha</text>
+<path d="M1950,1287 C1950,1254.0 2390,1254.0 2390,1287 L2390,1348 C2390,1381.0 1950,1381.0 1950,1348 Z" fill="#fff3dc" stroke="#c77a00" stroke-width="2.5"/>
+<ellipse cx="2170.0" cy="1287" rx="220.0" ry="22" fill="#fff3dc" stroke="#c77a00" stroke-width="2.5"/>
+<path d="M1950,1348 C1950,1381.0 2390,1381.0 2390,1348" fill="none" stroke="#c77a00" stroke-width="2.5"/>
+<text x="2170.0" y="1315" text-anchor="middle" class="store-title">Prometheus / Grafana</text>
+<text x="2170.0" y="1343" text-anchor="middle" class="store-sub">опционально</text>
+<rect x="80" y="1245" width="610" height="260" rx="14" fill="white" stroke="#999" stroke-width="1.6"/>
+<text x="385" y="1280" text-anchor="middle" class="legend-title">Легенда потоков</text>
+<text x="110" y="1322" class="legend-text">F1–F2: действия пользователя в UI и API-запросы</text>
+<text x="110" y="1346" class="legend-text">F3–F4: действия посетителя и отправка check/behavior</text>
+<text x="110" y="1370" class="legend-text">F5–F9: маршрутизация Nginx к функциям backend</text>
+<text x="110" y="1394" class="legend-text">F10–F14: чтение/запись данных в DB и session store</text>
+<text x="110" y="1418" class="legend-text">F15–F18: анализ поведения и расчёт risk score</text>
+<text x="110" y="1442" class="legend-text">F19–F20: CAPTCHA/решение allow-captcha-block</text>
+<text x="110" y="1466" class="legend-text">F21–F22: файлы: metadata + объектное хранилище</text>
+<text x="110" y="1490" class="legend-text">F23–F24: OAuth и экспорт метрик</text>
+<rect x="840" y="1255" width="900" height="125" rx="14" fill="#fff8e7" stroke="#999" stroke-width="1.6"/>
+<text x="1290" y="1300" text-anchor="middle" class="note">Примечание: текущая реализация отдаёт решение через /api/check; сквозное</text>
+<text x="1290" y="1326" text-anchor="middle" class="note">проксирование трафика к origin-server не показано как реализованный поток.</text>
+<path d="M 350 210 L 470 210" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/><circle cx="410" cy="210" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="410" y="215" text-anchor="middle" class="flow-id">F1</text>
+<path d="M 595 255 L 595 365" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/><circle cx="595" cy="310" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="595" y="315" text-anchor="middle" class="flow-id">F2</text>
+<path d="M 350 640 L 470 640" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/><circle cx="410" cy="640" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="410" y="645" text-anchor="middle" class="flow-id">F3</text>
+<path d="M 470 640 L 430 640 L 430 412 L 470 412" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/><circle cx="430" cy="515" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="430" y="520" text-anchor="middle" class="flow-id">F4</text>
+<path d="M 720 410 L 780 410 L 780 302 L 910 302" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 720 425 L 795 425 L 795 275 L 1360 275" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 720 640 L 790 640 L 790 548 L 910 548" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 595 685 L 595 710 L 790 710 L 790 985 L 1290 985 L 1290 548 L 1360 548" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 595 460 L 595 1110 L 880 1110 L 880 988 L 910 988" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="765" y="275" width="50" height="170" rx="20" fill="white" stroke="#d0d0d0" stroke-width="1"/>
+<circle cx="790" cy="300" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="790" y="305" text-anchor="middle" class="flow-id">F5</text>
+<circle cx="790" cy="340" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="790" y="345" text-anchor="middle" class="flow-id">F6</text>
+<circle cx="790" cy="380" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="790" y="385" text-anchor="middle" class="flow-id">F8</text>
+<circle cx="790" cy="420" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="790" y="425" text-anchor="middle" class="flow-id">F9</text>
+<circle cx="595" cy="730" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="595" y="735" text-anchor="middle" class="flow-id">F20</text>
+<path d="M 1230 302 L 1360 302" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1230 548 L 1360 548" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1230 792 L 1360 792" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1230 988 L 1360 988" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="1270" y="277" width="50" height="134" rx="20" fill="white" stroke="#d0d0d0" stroke-width="1"/>
+<circle cx="1295" cy="302" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1295" y="307" text-anchor="middle" class="flow-id">F10</text>
+<circle cx="1295" cy="344" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1295" y="349" text-anchor="middle" class="flow-id">F13</text>
+<circle cx="1295" cy="386" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1295" y="391" text-anchor="middle" class="flow-id">F18</text>
+<path d="M 1520 595 L 1520 660 L 1070 660 L 1070 745" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1070 595 L 1070 745" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1230 792 L 1360 792" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="1265" y="650" width="50" height="90" rx="20" fill="white" stroke="#d0d0d0" stroke-width="1"/>
+<circle cx="1290" cy="675" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1290" y="680" text-anchor="middle" class="flow-id">F15</text>
+<circle cx="1290" cy="715" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1290" y="720" text-anchor="middle" class="flow-id">F17</text>
+<path d="M 1680 302 L 1835 302 L 1835 245 L 1950 245" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1680 548 L 1835 548 L 1835 492 L 1950 492" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1230 988 L 1260 988 L 1260 1125 L 1835 1125 L 1835 270 L 1950 270" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1230 1012 L 1780 1012 L 1780 745 L 1950 745" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1070 255 L 1070 105 L 1810 105 L 1810 940 L 1950 940" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1680 792 L 1815 792 L 1815 1125 L 1950 1125" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1680 988 L 1820 988 L 1820 1320 L 1950 1320" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1520 840 L 1520 865 L 1825 865 L 1825 510 L 1950 510" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="1810" y="220" width="50" height="275" rx="20" fill="white" stroke="#d0d0d0" stroke-width="1"/>
+<circle cx="1835" cy="245" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1835" y="250" text-anchor="middle" class="flow-id">F21</text>
+<circle cx="1835" cy="290" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1835" y="295" text-anchor="middle" class="flow-id">F16</text>
+<circle cx="1835" cy="335" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1835" y="340" text-anchor="middle" class="flow-id">F22</text>
+<circle cx="1835" cy="380" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1835" y="385" text-anchor="middle" class="flow-id">F23</text>
+<circle cx="1835" cy="425" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1835" y="430" text-anchor="middle" class="flow-id">F19</text>
+<circle cx="1835" cy="470" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1835" y="475" text-anchor="middle" class="flow-id">F24</text>
+<path d="M 1070 350 L 1070 380 L 1800 380 L 1800 245 L 1950 245" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1520 350 L 1520 385 L 1815 385 L 1815 260 L 1950 260" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<path d="M 1070 940 L 1070 900 L 1805 900 L 1805 285 L 1950 285" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="1735" y="355" width="50" height="130" rx="20" fill="white" stroke="#d0d0d0" stroke-width="1"/>
+<circle cx="1760" cy="380" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1760" y="385" text-anchor="middle" class="flow-id">F11</text>
+<circle cx="1760" cy="420" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1760" y="425" text-anchor="middle" class="flow-id">F12</text>
+<circle cx="1760" cy="460" r="15" fill="white" stroke="#777" stroke-width="1.5"/><text x="1760" y="465" text-anchor="middle" class="flow-id">F14</text>
+<path d="M 1360 815 L 830 815 L 830 1160 L 595 1160 L 595 685" fill="none" stroke="#333" stroke-width="2.2" marker-end="url(#arrow)"/>
+</svg>
