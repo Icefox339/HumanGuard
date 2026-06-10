@@ -6,6 +6,7 @@ COPY . .
 RUN npm run build  
   
 FROM nginx:alpine
+RUN apk add --no-cache --upgrade libxml2
 COPY ./nginx.conf /etc/nginx/conf.d/default.conf  
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY ./env-config.template.js /usr/share/nginx/html/env-config.template.js
