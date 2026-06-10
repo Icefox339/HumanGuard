@@ -75,7 +75,7 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token *oauth2.Token) (*O
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var userInfo OAuthUserInfo
 
@@ -118,7 +118,7 @@ func (o *OAuthService) GetUserInfo(ctx context.Context, token *oauth2.Token) (*O
 			if err != nil {
 				return nil, err
 			}
-			defer emailResp.Body.Close()
+			defer func() { _ = emailResp.Body.Close() }()
 
 			var emails []struct {
 				Email    string `json:"email"`

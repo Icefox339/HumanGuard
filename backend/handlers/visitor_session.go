@@ -156,13 +156,23 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	if r.Body != nil {
-		bodyBytes, _ := io.ReadAll(r.Body)
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("[CheckRequest] Failed to read request body: %v", err)
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read request body"})
+			return
+		}
+
 		log.Printf("[CheckRequest] Raw body: %s", string(bodyBytes))
 		if len(bodyBytes) > 0 {
-			json.Unmarshal(bodyBytes, &reqBody)
+			if err := json.Unmarshal(bodyBytes, &reqBody); err != nil {
+				log.Printf("[CheckRequest] Failed to parse request body: %v", err)
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+				return
+			}
 			log.Printf("[CheckRequest] Parsed: CaptchaPassed=%v", reqBody.CaptchaPassed)
 		}
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
 	sessionID := r.Header.Get("X-Session-ID")
@@ -241,7 +251,11 @@ func (h *VisitorSessionHandler) CheckRequest(w http.ResponseWriter, r *http.Requ
 
 	if reqBody.CaptchaPassed {
 		log.Printf("[CheckRequest] Captcha passed! Setting risk to 0")
-		h.storage.UpdateRiskScore(r.Context(), sessionID, 0)
+		if err := h.storage.UpdateRiskScore(r.Context(), sessionID, 0); err != nil {
+			log.Printf("[CheckRequest] Failed to reset risk score: %v", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reset risk score"})
+			return
+		}
 		currentRisk = 0
 		action = "allow"
 	} else if currentRisk >= 80 {

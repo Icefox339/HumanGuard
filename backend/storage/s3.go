@@ -23,7 +23,7 @@ func NewLocalS3(baseDir string) (*LocalS3, error) {
 	return &LocalS3{baseDir: baseDir}, nil
 }
 
-func (l *LocalS3) Save(path string, reader io.Reader) (int64, error) {
+func (l *LocalS3) Save(path string, reader io.Reader) (written int64, err error) {
 	fullPath := filepath.Join(l.baseDir, path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return 0, err
@@ -33,7 +33,11 @@ func (l *LocalS3) Save(path string, reader io.Reader) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); err == nil {
+			err = closeErr
+		}
+	}()
 
 	return io.Copy(file, reader)
 }

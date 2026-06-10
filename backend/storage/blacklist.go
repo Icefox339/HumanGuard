@@ -80,7 +80,7 @@ func (s *storage) ListBlacklist(ctx context.Context, siteID string) ([]*Blacklis
 	if err != nil {
 		return nil, fmt.Errorf("failed to list blacklist: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []*BlacklistEntry
 	for rows.Next() {

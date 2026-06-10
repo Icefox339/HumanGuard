@@ -126,7 +126,7 @@ func (s *storage) ListAPIKeys(ctx context.Context, userID string) ([]*APIKey, er
     if err != nil {
         return nil, fmt.Errorf("failed to list api keys: %w", err)
     }
-    defer rows.Close()
+    defer func() { _ = rows.Close() }()
     
     var keys []*APIKey
     for rows.Next() {
@@ -171,7 +171,7 @@ func (s *storage) ListAllAPIKeys(ctx context.Context) ([]*APIKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all api keys: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var keys []*APIKey
 	for rows.Next() {
