@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { useParams } from 'react-router-dom';
 import { getSiteSettings, updateSiteSettings } from '@/api/settings';
@@ -16,7 +16,7 @@ export const SiteSettingsForm = () => {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     if (!siteId) {
       setError('Site ID не найден в URL.');
       return;
@@ -34,11 +34,11 @@ export const SiteSettingsForm = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [siteId]);
 
   useEffect(() => {
     void loadSettings();
-  }, [siteId]);
+  }, [loadSettings]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

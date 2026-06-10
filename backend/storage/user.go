@@ -73,7 +73,7 @@ func (s *storage) ListUsers(ctx context.Context) ([]*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	users := make([]*User, 0)
 	for rows.Next() {
@@ -360,7 +360,7 @@ func (s *storage) GetUserOAuths(ctx context.Context, userID string) ([]*UserOAut
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var oauths []*UserOAuth
 	for rows.Next() {

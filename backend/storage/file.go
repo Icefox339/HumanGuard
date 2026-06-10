@@ -47,7 +47,7 @@ func (s *storage) ListUserFiles(ctx context.Context, userID string) ([]*FileReco
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var files []*FileRecord
 	for rows.Next() {

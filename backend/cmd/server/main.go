@@ -23,7 +23,11 @@ import (
 
 func main() {
 	store := connectToDatabase()
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			log.Printf("Failed to close storage: %v", err)
+		}
+	}()
 
 	server := startHTTPServer(store)
 	waitForShutdown(server)
@@ -394,50 +398,6 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 
 		log.Printf("[%s] %s %s %s (auth: %s)", requestID, r.Method, r.URL.Path, time.Since(start), authMethod)
-	})
-}
-
-func corsMiddleware(next http.Handler) http.Handler {
-	allowedOrigins := make(map[string]bool)
-
-	if envOrigin := getEnv("CORS_ORIGIN", ""); envOrigin != "" {
-		for _, origin := range strings.Split(envOrigin, ",") {
-			allowedOrigins[strings.TrimSpace(origin)] = true
-		}
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-
-		if r.Header.Get("Upgrade") == "websocket" {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		isAllowed := false
-		if origin != "" {
-			if allowedOrigins[origin] {
-				isAllowed = true
-			}
-		}
-
-		if isAllowed {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-		}
-
-		w.Header().Set("Vary", "Origin")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-CSRF-Token, X-Site-ID, X-Session-ID")
-		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining, X-Session-ID")
-		w.Header().Set("Access-Control-Max-Age", "86400")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
 	})
 }
 

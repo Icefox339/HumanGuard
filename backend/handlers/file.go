@@ -135,7 +135,7 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			pr, pw := io.Pipe()
 
 			go func() {
-				defer pw.Close()
+				defer func() { _ = pw.Close() }()
 				for {
 					n, readErr := part.Read(buf)
 					if n > 0 {
@@ -214,7 +214,7 @@ func (h *FileHandler) Download(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "file not found", http.StatusNotFound)
 		return
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	w.Header().Set("Content-Type", fileRecord.MimeType)
 	disposition := "attachment"
@@ -340,7 +340,7 @@ func (h *FileHandler) GetByShareToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "file not found", http.StatusNotFound)
 		return
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	w.Header().Set("Content-Type", fileRecord.MimeType)
 	disposition := "attachment"
@@ -397,7 +397,7 @@ func (h *FileHandler) UploadProgressWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("[WS] 10. Upgrade SUCCESS! WebSocket connected")
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()

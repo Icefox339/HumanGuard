@@ -276,7 +276,7 @@ func (s *storage) GetSitesByUserID(ctx context.Context, userID string) ([]*Site,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sites by user: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sites []*Site
 	for rows.Next() {
