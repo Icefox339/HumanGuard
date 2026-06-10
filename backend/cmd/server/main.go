@@ -162,6 +162,7 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	apiKeyHandler := handlers.NewAPIKeyHandler(store)
 	fs := setupFileStorage()
 	fileHandler := handlers.NewFileHandler(store, fs)
+
 	// Middleware
 	authMiddleware := auth.NewAuthMiddleware(jwtService, userSessionManager, store)
 	adminOnly := auth.RequireAdmin()
@@ -178,7 +179,9 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.Handle("GET /api/auth/github/login", routeContext("GET /api/auth/github/login", http.HandlerFunc(userHandler.GithubLogin)))
 	mux.Handle("GET /api/auth/github/callback", routeContext("GET /api/auth/github/callback", http.HandlerFunc(userHandler.GithubCallback)))
 	mux.Handle("POST /api/check", routeContext("POST /api/check", http.HandlerFunc(visitorSessionHandler.CheckRequest)))
+	mux.Handle("OPTIONS /api/check", routeContext("OPTIONS /api/check", http.HandlerFunc(visitorSessionHandler.CheckRequest)))
 	mux.Handle("POST /api/behavior/{id}", routeContext("POST /api/behavior/{id}", http.HandlerFunc(behaviorHandler.SubmitBehavior)))
+	mux.Handle("OPTIONS /api/behavior/{id}", routeContext("OPTIONS /api/behavior/{id}", http.HandlerFunc(behaviorHandler.SubmitBehavior)))
 	mux.Handle("GET /api/csrf", routeContext("GET /api/csrf", http.HandlerFunc(middleware.CSRFTokenHandler)))
 	mux.Handle("GET /api/files/share/{token}", routeContext("GET /api/files/share/{token}", http.HandlerFunc(fileHandler.GetByShareToken)))
 
@@ -203,7 +206,6 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	mux.Handle("GET /api/admin/keys", routeContext("GET /api/admin/keys", authMiddleware.Middleware(adminOnly(http.HandlerFunc(apiKeyHandler.ListAllAPIKeys)))))
 
 	// Site эндпоинты
-	// Blacklist endpoints
 	mux.Handle("GET /api/sites/{id}/blacklist", routeContext("GET /api/sites/{id}/blacklist", authMiddleware.Middleware(http.HandlerFunc(siteHandler.GetBlacklist))))
 	mux.Handle("POST /api/sites/{id}/blacklist", routeContext("POST /api/sites/{id}/blacklist", authMiddleware.Middleware(http.HandlerFunc(siteHandler.AddToBlacklist))))
 	mux.Handle("DELETE /api/sites/{id}/blacklist/{ip}", routeContext("DELETE /api/sites/{id}/blacklist/{ip}", authMiddleware.Middleware(http.HandlerFunc(siteHandler.RemoveFromBlacklist))))
@@ -238,13 +240,26 @@ func startHTTPServer(store storage.Storage) *http.Server {
 	// Анализ поведения
 	mux.Handle("POST /api/sessions/{id}/analyze", routeContext("POST /api/sessions/{id}/analyze", authMiddleware.Middleware(http.HandlerFunc(behaviorHandler.TriggerAnalysis))))
 
-	// Глобальные middleware
+	// ========== ГЛОБАЛЬНЫЕ MIDDLEWARE (порядок важен!) ==========
 	handler := http.Handler(mux)
-	handler = loggingMiddleware(handler)
-	handler = corsMiddleware(handler)
-	handler = middleware.CSPMiddleware(handler)
+
+	// 1. Request ID - самый первый, чтобы все логи имели ID
 	handler = middleware.RequestIDMiddleware(handler)
+
+	// 2. Логирование запросов
+	handler = loggingMiddleware(handler)
+
+	// 3. CORS для API эндпоинтов (админка, пользователи) - НЕ для /api/check и /api/behavior
+	// Эти эндпоинты имеют свою CORS логику в хендлерах
+	handler = middleware.APICORSMiddleware(handler)
+
+	// 4. CSP (Content Security Policy)
+	handler = middleware.CSPMiddleware(handler)
+
+	// 5. Метрики
 	handler = middleware.MetricsMiddleware(handler)
+
+	// 6. CSRF защита (с исключениями для публичных эндпоинтов)
 	handler = middleware.CSRFMiddleware([]string{
 		"/api/login",
 		"/api/users",
@@ -252,6 +267,8 @@ func startHTTPServer(store storage.Storage) *http.Server {
 		"/api/behavior/",
 		"/api/auth/",
 	})(handler)
+
+	// 7. Rate limiter
 	handler = setupRateLimiter(handler)
 
 	server := &http.Server{
@@ -382,7 +399,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigins := make(map[string]bool)
-	
+
 	if envOrigin := getEnv("CORS_ORIGIN", ""); envOrigin != "" {
 		for _, origin := range strings.Split(envOrigin, ",") {
 			allowedOrigins[strings.TrimSpace(origin)] = true
@@ -391,7 +408,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		
+
 		if r.Header.Get("Upgrade") == "websocket" {
 			next.ServeHTTP(w, r)
 			return
@@ -425,11 +442,12 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func routeContext(route string, handler http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        ctx := context.WithValue(r.Context(), middleware.RouteKey, route)
-        handler.ServeHTTP(w, r.WithContext(ctx))
-    })
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), middleware.RouteKey, route)
+		handler.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
+
 // getEnv - получение переменной окружения с дефолтом
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
