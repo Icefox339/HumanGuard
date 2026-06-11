@@ -1,7 +1,7 @@
 import { ChangeEvent, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 import { API_URL } from '@/lib/constants';
-import { createFileShare, getFiles, ManagedFile, openUploadProgressSocket, uploadFile } from '@/api/files';
+import { createFileShare, deleteFile, getFiles, ManagedFile, openUploadProgressSocket, uploadFile } from '@/api/files';
 
 const formatBytes = (bytes: number) => {
   if (bytes === 0) {
@@ -13,7 +13,7 @@ const formatBytes = (bytes: number) => {
 };
 
 type ErrorDetails = {
-  operation: 'upload' | 'list';
+  operation: 'upload' | 'list' | 'delete';
   message: string;
   status?: number;
   code?: string;
@@ -25,7 +25,7 @@ type ErrorDetails = {
 };
 
 const buildErrorDetails = (
-  operation: 'upload' | 'list',
+  operation: 'upload' | 'list' | 'delete',
   error: unknown,
   file?: File | null
 ): ErrorDetails => {
@@ -56,6 +56,7 @@ export const FilesManager = () => {
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
   const [shareTokens, setShareTokens] = useState<Record<string, string>>({});
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
   const loadFiles = async () => {
     setLoading(true);
@@ -137,6 +138,34 @@ export const FilesManager = () => {
       await navigator.clipboard.writeText(shareUrl);
     } catch {
       setError('Не удалось создать ссылку для шаринга файла.');
+    }
+  };
+
+  const onDelete = async (file: ManagedFile) => {
+    const fileName = file.original_name ?? file.name;
+    if (!window.confirm(`Удалить файл «${fileName}»? Это действие нельзя отменить.`)) {
+      return;
+    }
+
+    setError(null);
+    setErrorDetails(null);
+    setDeletingFileId(file.id);
+
+    try {
+      await deleteFile(file.id);
+      setFiles((prev) => prev.filter((item) => item.id !== file.id));
+      setShareTokens((prev) => {
+        const next = { ...prev };
+        delete next[file.id];
+        return next;
+      });
+    } catch (e) {
+      const details = buildErrorDetails('delete', e);
+      setError(details.message);
+      setErrorDetails(details);
+      console.error('[FilesManager] delete failed', details, e);
+    } finally {
+      setDeletingFileId(null);
     }
   };
 
@@ -223,6 +252,14 @@ export const FilesManager = () => {
                   <a className="interactive-chip rounded border border-[rgb(var(--border))] px-3 py-1 text-sm text-[rgb(var(--text-primary))]" download href={getDownloadUrl(file)} rel="noreferrer" target="_blank">
                     Скачать
                   </a>
+                  <button
+                    className="interactive-chip rounded border border-red-500/60 px-3 py-1 text-sm text-red-600 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={deletingFileId === file.id}
+                    onClick={() => void onDelete(file)}
+                    type="button"
+                  >
+                    {deletingFileId === file.id ? 'Удаление…' : 'Удалить'}
+                  </button>
                 </div>
               </div>
               {shareTokens[file.id] && <p className="mt-2 break-all text-xs text-[rgb(var(--text-secondary))]">Ссылка для передачи: {shareTokens[file.id]} (скопировано)</p>}
